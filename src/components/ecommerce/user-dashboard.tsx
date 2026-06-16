@@ -41,7 +41,7 @@ const mockOrders = [
     ],
     total: 112998,
     deliveryDate: '2024-03-18',
-    address: 'Rahul Sharma, 42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
+    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
   },
   {
     id: 'ORD-2024-002',
@@ -52,7 +52,7 @@ const mockOrders = [
     ],
     total: 12995,
     deliveryDate: '2024-03-24',
-    address: 'Rahul Sharma, 42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
+    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
     trackingId: 'TRK9876543210',
   },
   {
@@ -65,7 +65,7 @@ const mockOrders = [
     ],
     total: 7995,
     deliveryDate: '2024-03-28',
-    address: 'Rahul Sharma, 42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
+    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
   },
   {
     id: 'ORD-2024-004',
@@ -76,7 +76,7 @@ const mockOrders = [
     ],
     total: 26990,
     deliveryDate: null,
-    address: 'Rahul Sharma, 42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
+    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
   },
   {
     id: 'ORD-2024-005',
@@ -87,15 +87,17 @@ const mockOrders = [
     ],
     total: 399,
     deliveryDate: '2024-03-27',
-    address: 'Rahul Sharma, 42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
+    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
   },
 ]
 
-const mockAddresses = [
-  { id: 'addr-1', name: 'Rahul Sharma', line1: '42 Park Avenue, Andheri West', line2: 'Near Metro Station', city: 'Mumbai', state: 'Maharashtra', pincode: '400053', phone: '+91 98765 43210', type: 'Home' as const, isDefault: true },
-  { id: 'addr-2', name: 'Rahul Sharma', line1: 'WeWork, BKC, Tower 1', line2: '9th Floor, Bandra Kurla Complex', city: 'Mumbai', state: 'Maharashtra', pincode: '400051', phone: '+91 98765 43210', type: 'Work' as const, isDefault: false },
-  { id: 'addr-3', name: 'Rahul Sharma', line1: '15, MG Road, Indiranagar', line2: '', city: 'Bengaluru', state: 'Karnataka', pincode: '560038', phone: '+91 98765 43211', type: 'Home' as const, isDefault: false },
-]
+function getMockAddresses(userName: string, userPhone: string) {
+  return [
+    { id: 'addr-1', name: userName || 'User', line1: '42 Park Avenue, Andheri West', line2: 'Near Metro Station', city: 'Mumbai', state: 'Maharashtra', pincode: '400053', phone: userPhone || '+91 98765 43210', type: 'Home' as const, isDefault: true },
+    { id: 'addr-2', name: userName || 'User', line1: 'WeWork, BKC, Tower 1', line2: '9th Floor, Bandra Kurla Complex', city: 'Mumbai', state: 'Maharashtra', pincode: '400051', phone: userPhone || '+91 98765 43210', type: 'Work' as const, isDefault: false },
+    { id: 'addr-3', name: userName || 'User', line1: '15, MG Road, Indiranagar', line2: '', city: 'Bengaluru', state: 'Karnataka', pincode: '560038', phone: userPhone || '+91 98765 43211', type: 'Home' as const, isDefault: false },
+  ]
+}
 
 const mockTransactions = [
   { id: 'txn-1', type: 'Credit' as const, amount: 500, description: 'Added via UPI', date: '2024-03-25' },
@@ -198,7 +200,9 @@ function ProfileTab() {
   const [editEmail, setEditEmail] = useState(user?.email || '')
   const [editPhone, setEditPhone] = useState(user?.phone || '')
   const [copied, setCopied] = useState(false)
-  const referralCode = 'RSHA2024X'
+  const referralCode = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 3) + '2024X'
+    : 'USER2024X'
 
   const membershipTier = user?.walletBalance && user.walletBalance > 5000 ? 'Platinum' :
     user?.walletBalance && user.walletBalance > 2000 ? 'Gold' : 'Silver'
@@ -286,9 +290,9 @@ function ProfileTab() {
                 </div>
               ) : (
                 <div>
-                  <h2 className="text-xl font-bold">{user?.name || 'Rahul Sharma'}</h2>
-                  <p className="text-muted-foreground text-sm">{user?.email || 'rahul.sharma@email.com'}</p>
-                  <p className="text-muted-foreground text-sm">{user?.phone || '+91 98765 43210'}</p>
+                  <h2 className="text-xl font-bold">{user?.name || 'User'}</h2>
+                  <p className="text-muted-foreground text-sm">{user?.email || ''}</p>
+                  <p className="text-muted-foreground text-sm">{user?.phone || ''}</p>
                   <Button size="sm" variant="ghost" className="mt-1 h-7 text-xs text-orange-500 hover:text-orange-600 px-0" onClick={() => setEditing(true)}>
                     <Edit size={12} className="mr-1" /> Edit Profile
                   </Button>
@@ -691,7 +695,8 @@ function WishlistTab() {
 
 // ==================== MY ADDRESSES TAB ====================
 function AddressesTab() {
-  const [addresses, setAddresses] = useState(mockAddresses)
+  const { user } = useAuthStore()
+  const [addresses, setAddresses] = useState(getMockAddresses(user?.name || '', user?.phone || ''))
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingAddr, setEditingAddr] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -702,7 +707,7 @@ function AddressesTab() {
     setFormData({ name: '', line1: '', line2: '', city: '', state: '', pincode: '', phone: '', type: 'Home' })
   }
 
-  const handleEditAddr = (addr: typeof mockAddresses[0]) => {
+  const handleEditAddr = (addr: typeof addresses[0]) => {
     setFormData({
       name: addr.name, line1: addr.line1, line2: addr.line2,
       city: addr.city, state: addr.state, pincode: addr.pincode,

@@ -1,0 +1,1023 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import { useAuthStore } from '@/store/auth-store'
+     6→     6→import { useNavigationStore } from '@/store/navigation-store'
+     7→     7→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     8→     8→import { Button } from '@/components/ui/button'
+     9→     9→import { Input } from '@/components/ui/input'
+    10→    10→import { Label } from '@/components/ui/label'
+    11→    11→import { Checkbox } from '@/components/ui/checkbox'
+    12→    12→import { Separator } from '@/components/ui/separator'
+    13→    13→import {
+    14→    14→  InputOTP,
+    15→    15→  InputOTPGroup,
+    16→    16→  InputOTPSlot,
+    17→    17→  InputOTPSeparator,
+    18→    18→} from '@/components/ui/input-otp'
+    19→    19→import {
+    20→    20→  Mail,
+    21→    21→  Lock,
+    22→    22→  Eye,
+    23→    23→  EyeOff,
+    24→    24→  Phone,
+    25→    25→  User,
+    26→    26→  ArrowRight,
+    27→    27→  Chrome,
+    28→    28→  ShieldCheck,
+    29→    29→  ShoppingBag,
+    30→    30→  Sparkles,
+    31→    31→} from 'lucide-react'
+    32→    32→
+    33→    33→// ── Main Component ────────────────────────────────────────────────────
+    34→    34→
+    35→    35→export function AuthPage() {
+    36→    36→  const authMode = useNavigationStore((s) => s.authMode)
+    37→    37→  const setAuthMode = useNavigationStore((s) => s.setAuthMode)
+    38→    38→  const navigate = useNavigationStore((s) => s.navigate)
+    39→    39→  const { login } = useAuthStore()
+    40→    40→
+    41→    41→  const handleLoginSuccess = (userData?: { id?: string; name?: string; email?: string; phone?: string; role?: string; walletBalance?: number; rewardPoints?: number }) => {
+    42→    42→    login({
+    43→    43→      id: userData?.id || 'user-1',
+    44→    44→      name: userData?.name || 'Rahul Sharma',
+    45→    45→      email: userData?.email || 'rahul@example.com',
+    46→    46→      phone: userData?.phone || '+91 98765 43210',
+    47→    47→      avatar: '',
+    48→    48→      role: (userData?.role as 'customer' | 'seller' | 'admin') || 'customer',
+    49→    49→      walletBalance: userData?.walletBalance || 2500,
+    50→    50→      rewardPoints: userData?.rewardPoints || 1250,
+    51→    51→    })
+    52→    52→    navigate('home')
+    53→    53→  }
+    54→    54→
+    55→    55→  return (
+    56→    56→    <div className="min-h-[70vh] flex items-center justify-center px-4 py-8">
+    57→    57→      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-0 lg:gap-0 overflow-hidden rounded-2xl shadow-2xl border border-border/30">
+    58→    58→        {/* Left: Illustration / Gradient */}
+    59→    59→        <motion.div
+    60→    60→          initial={{ opacity: 0, x: -30 }}
+    61→    61→          animate={{ opacity: 1, x: 0 }}
+    62→    62→          transition={{ duration: 0.5 }}
+    63→    63→          className="hidden lg:flex flex-col items-center justify-center bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 p-8 relative overflow-hidden min-h-[560px]"
+    64→    64→        >
+    65→    65→          {/* Background shapes */}
+    66→    66→          <div className="absolute inset-0 overflow-hidden">
+    67→    67→            <div className="absolute -top-20 -left-20 w-60 h-60 rounded-full bg-white/10 blur-2xl" />
+    68→    68→            <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
+    69→    69→            <div className="absolute top-1/3 right-10 w-40 h-40 rounded-full bg-white/5 blur-xl" />
+    70→    70→          </div>
+    71→    71→
+    72→    72→          <div className="relative z-10 text-center">
+    73→    73→            <motion.div
+    74→    74→              initial={{ scale: 0, rotate: -10 }}
+    75→    75→              animate={{ scale: 1, rotate: 0 }}
+    76→    76→              transition={{ delay: 0.2, type: 'spring', duration: 0.8 }}
+    77→    77→              className="w-28 h-28 mx-auto mb-6 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center"
+    78→    78→            >
+    79→    79→              <ShoppingBag className="w-14 h-14 text-white" />
+    80→    80→            </motion.div>
+    81→    81→            <motion.h2
+    82→    82→              initial={{ opacity: 0, y: 20 }}
+    83→    83→              animate={{ opacity: 1, y: 0 }}
+    84→    84→              transition={{ delay: 0.4 }}
+    85→    85→              className="text-3xl font-bold text-white mb-3"
+    86→    86→            >
+    87→    87→              Welcome to ShopZone
+    88→    88→            </motion.h2>
+    89→    89→            <motion.p
+    90→    90→              initial={{ opacity: 0, y: 20 }}
+    91→    91→              animate={{ opacity: 1, y: 0 }}
+    92→    92→              transition={{ delay: 0.5 }}
+    93→    93→              className="text-white/80 max-w-sm mx-auto text-sm leading-relaxed"
+    94→    94→            >
+    95→    95→              Discover millions of products at unbeatable prices. Your one-stop
+    96→    96→              destination for everything you need.
+    97→    97→            </motion.p>
+    98→    98→            <motion.div
+    99→    99→              initial={{ opacity: 0, y: 20 }}
+   100→   100→              animate={{ opacity: 1, y: 0 }}
+   101→   101→              transition={{ delay: 0.6 }}
+   102→   102→              className="flex items-center justify-center gap-6 mt-8 text-white/70 text-xs"
+   103→   103→            >
+   104→   104→              <div className="flex items-center gap-1.5">
+   105→   105→                <ShieldCheck className="w-4 h-4" />
+   106→   106→                <span>Secure</span>
+   107→   107→              </div>
+   108→   108→              <div className="flex items-center gap-1.5">
+   109→   109→                <Sparkles className="w-4 h-4" />
+   110→   110→                <span>Premium</span>
+   111→   111→              </div>
+   112→   112→              <div className="flex items-center gap-1.5">
+   113→   113→                <ShoppingBag className="w-4 h-4" />
+   114→   114→                <span>Millions of Products</span>
+   115→   115→              </div>
+   116→   116→            </motion.div>
+   117→   117→          </div>
+   118→   118→        </motion.div>
+   119→   119→
+   120→   120→        {/* Right: Form */}
+   121→   121→        <div className="bg-background p-6 sm:p-8">
+   122→   122→          <AnimatePresence mode="wait">
+   123→   123→            {authMode === 'login' && (
+   124→   124→              <FormWrapper key="login">
+   125→   125→                <LoginForm
+   126→   126→                  onLogin={handleLoginSuccess}
+   127→   127→                  onForgotPassword={() => setAuthMode('forgot-password')}
+   128→   128→                  onRegister={() => setAuthMode('register')}
+   129→   129→                  onOtpLogin={() => setAuthMode('otp')}
+   130→   130→                />
+   131→   131→              </FormWrapper>
+   132→   132→            )}
+   133→   133→            {authMode === 'register' && (
+   134→   134→              <FormWrapper key="register">
+   135→   135→                <RegisterForm
+   136→   136→                  onRegister={handleLoginSuccess}
+   137→   137→                  onLogin={() => setAuthMode('login')}
+   138→   138→                />
+   139→   139→              </FormWrapper>
+   140→   140→            )}
+   141→   141→            {authMode === 'otp' && (
+   142→   142→              <FormWrapper key="otp">
+   143→   143→                <OtpForm
+   144→   144→                  onVerify={handleLoginSuccess}
+   145→   145→                  onBack={() => setAuthMode('login')}
+   146→   146→                />
+   147→   147→              </FormWrapper>
+   148→   148→            )}
+   149→   149→            {authMode === 'forgot-password' && (
+   150→   150→              <FormWrapper key="forgot">
+   151→   151→                <ForgotPasswordForm
+   152→   152→                  onBack={() => setAuthMode('login')}
+   153→   153→                  onSuccess={() => setAuthMode('login')}
+   154→   154→                />
+   155→   155→              </FormWrapper>
+   156→   156→            )}
+   157→   157→          </AnimatePresence>
+   158→   158→        </div>
+   159→   159→      </div>
+   160→   160→    </div>
+   161→   161→  )
+   162→   162→}
+   163→   163→
+   164→   164→// ── Form animation wrapper ─────────────────────────────────────────────
+   165→   165→
+   166→   166→function FormWrapper({ children }: { children: React.ReactNode }) {
+   167→   167→  return (
+   168→   168→    <motion.div
+   169→   169→      initial={{ opacity: 0, x: 20 }}
+   170→   170→      animate={{ opacity: 1, x: 0 }}
+   171→   171→      exit={{ opacity: 0, x: -20 }}
+   172→   172→      transition={{ duration: 0.3 }}
+   173→   173→    >
+   174→   174→      {children}
+   175→   175→    </motion.div>
+   176→   176→  )
+   177→   177→}
+   178→   178→
+   179→   179→// ── Login Form ─────────────────────────────────────────────────────────
+   180→   180→
+   181→   181→function LoginForm({
+   182→   182→  onLogin,
+   183→   183→  onForgotPassword,
+   184→   184→  onRegister,
+   185→   185→  onOtpLogin,
+   186→   186→}: {
+   187→   187→  onLogin: (userData?: { id?: string; name?: string; email?: string; phone?: string; role?: string; walletBalance?: number; rewardPoints?: number }) => void
+   188→   188→  onForgotPassword: () => void
+   189→   189→  onRegister: () => void
+   190→   190→  onOtpLogin: () => void
+   191→   191→}) {
+   192→   192→  const [email, setEmail] = useState('')
+   193→   193→  const [password, setPassword] = useState('')
+   194→   194→  const [showPassword, setShowPassword] = useState(false)
+   195→   195→  const [isLoading, setIsLoading] = useState(false)
+   196→   196→  const [error, setError] = useState('')
+   197→   197→
+   198→   198→  const handleSubmit = async (e: React.FormEvent) => {
+   199→   199→    e.preventDefault()
+   200→   200→    setError('')
+   201→   201→    if (!email.trim()) { setError('Please enter your email or phone'); return }
+   202→   202→    if (!password) { setError('Please enter your password'); return }
+   203→   203→    setIsLoading(true)
+   204→   204→    try {
+   205→   205→      const res = await fetch('/api/auth/login', {
+   206→   206→        method: 'POST',
+   207→   207→        headers: { 'Content-Type': 'application/json' },
+   208→   208→        body: JSON.stringify({ email, password }),
+   209→   209→      })
+   210→   210→      const data = await res.json()
+   211→   211→      if (!res.ok) {
+   212→   212→        setError(data.error || 'Invalid email or password')
+   213→   213→        setIsLoading(false)
+   214→   214→        return
+   215→   215→      }
+   216→   216→      setIsLoading(false)
+   217→   217→      onLogin(data.user)
+   218→   218→    } catch {
+   219→   219→      setError('Network error. Please try again.')
+   220→   220→      setIsLoading(false)
+   221→   221→    }
+   222→   222→  }
+   223→   223→
+   224→   224→  return (
+   225→   225→    <div>
+   226→   226→      <div className="mb-6">
+   227→   227→        <h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
+   228→   228→        <p className="text-sm text-muted-foreground mt-1">
+   229→   229→          Sign in to your ShopZone account
+   230→   230→        </p>
+   231→   231→      </div>
+   232→   232→
+   233→   233→      <form onSubmit={handleSubmit} className="space-y-4">
+   234→   234→        {error && (
+   235→   235→          <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800">
+   236→   236→            {error}
+   237→   237→          </div>
+   238→   238→        )}
+   239→   239→        <div className="space-y-2">
+   240→   240→          <Label htmlFor="login-email">Email or Phone</Label>
+   241→   241→          <div className="relative">
+   242→   242→            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   243→   243→            <Input
+   244→   244→              id="login-email"
+   245→   245→              type="text"
+   246→   246→              placeholder="you@example.com"
+   247→   247→              value={email}
+   248→   248→              onChange={(e) => setEmail(e.target.value)}
+   249→   249→              className="pl-10 rounded-lg"
+   250→   250→              required
+   251→   251→            />
+   252→   252→          </div>
+   253→   253→        </div>
+   254→   254→
+   255→   255→        <div className="space-y-2">
+   256→   256→          <div className="flex items-center justify-between">
+   257→   257→            <Label htmlFor="login-password">Password</Label>
+   258→   258→            <button
+   259→   259→              type="button"
+   260→   260→              onClick={onForgotPassword}
+   261→   261→              className="text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400 font-medium"
+   262→   262→            >
+   263→   263→              Forgot Password?
+   264→   264→            </button>
+   265→   265→          </div>
+   266→   266→          <div className="relative">
+   267→   267→            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   268→   268→            <Input
+   269→   269→              id="login-password"
+   270→   270→              type={showPassword ? 'text' : 'password'}
+   271→   271→              placeholder="Enter your password"
+   272→   272→              value={password}
+   273→   273→              onChange={(e) => setPassword(e.target.value)}
+   274→   274→              className="pl-10 pr-10 rounded-lg"
+   275→   275→              required
+   276→   276→            />
+   277→   277→            <button
+   278→   278→              type="button"
+   279→   279→              onClick={() => setShowPassword(!showPassword)}
+   280→   280→              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+   281→   281→            >
+   282→   282→              {showPassword ? (
+   283→   283→                <EyeOff className="w-4 h-4" />
+   284→   284→              ) : (
+   285→   285→                <Eye className="w-4 h-4" />
+   286→   286→              )}
+   287→   287→            </button>
+   288→   288→          </div>
+   289→   289→        </div>
+   290→   290→
+   291→   291→        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+   292→   292→          <Button
+   293→   293→            type="submit"
+   294→   294→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20"
+   295→   295→            disabled={isLoading}
+   296→   296→          >
+   297→   297→            {isLoading ? (
+   298→   298→              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   299→   299→            ) : (
+   300→   300→              <>
+   301→   301→                Login
+   302→   302→                <ArrowRight className="w-4 h-4 ml-2" />
+   303→   303→              </>
+   304→   304→            )}
+   305→   305→          </Button>
+   306→   306→        </motion.div>
+   307→   307→      </form>
+   308→   308→
+   309→   309→      {/* Divider */}
+   310→   310→      <div className="flex items-center gap-3 my-5">
+   311→   311→        <Separator className="flex-1" />
+   312→   312→        <span className="text-xs text-muted-foreground font-medium">OR</span>
+   313→   313→        <Separator className="flex-1" />
+   314→   314→      </div>
+   315→   315→
+   316→   316→      {/* Social login buttons */}
+   317→   317→      <div className="space-y-3">
+   318→   318→        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+   319→   319→          <Button
+   320→   320→            type="button"
+   321→   321→            variant="outline"
+   322→   322→            className="w-full h-11 rounded-xl font-medium"
+   323→   323→            onClick={async () => {
+   324→   324→              setIsLoading(true)
+   325→   325→              setError('')
+   326→   326→              try {
+   327→   327→                const res = await fetch('/api/auth/login', {
+   328→   328→                  method: 'POST',
+   329→   329→                  headers: { 'Content-Type': 'application/json' },
+   330→   330→                  body: JSON.stringify({ email: 'google@shopzone.com', password: 'google123' }),
+   331→   331→                })
+   332→   332→                const data = await res.json()
+   333→   333→                setIsLoading(false)
+   334→   334→                if (res.ok) onLogin(data.user)
+   335→   335→                else onLogin()
+   336→   336→              } catch { setIsLoading(false); onLogin() }
+   337→   337→            }}
+   338→   338→          >
+   339→   339→            <Chrome className="w-4 h-4 mr-2" />
+   340→   340→            Login with Google
+   341→   341→          </Button>
+   342→   342→        </motion.div>
+   343→   343→
+   344→   344→        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+   345→   345→          <Button
+   346→   346→            type="button"
+   347→   347→            variant="outline"
+   348→   348→            className="w-full h-11 rounded-xl font-medium"
+   349→   349→            onClick={onOtpLogin}
+   350→   350→          >
+   351→   351→            <Phone className="w-4 h-4 mr-2" />
+   352→   352→            Login with OTP
+   353→   353→          </Button>
+   354→   354→        </motion.div>
+   355→   355→      </div>
+   356→   356→
+   357→   357→      {/* Register link */}
+   358→   358→      <p className="text-center text-sm text-muted-foreground mt-6">
+   359→   359→        New to ShopZone?{' '}
+   360→   360→        <button
+   361→   361→          type="button"
+   362→   362→          onClick={onRegister}
+   363→   363→          className="text-orange-600 hover:text-orange-700 dark:text-orange-400 font-semibold"
+   364→   364→        >
+   365→   365→          Register
+   366→   366→        </button>
+   367→   367→      </p>
+   368→   368→    </div>
+   369→   369→  )
+   370→   370→}
+   371→   371→
+   372→   372→// ── Register Form ──────────────────────────────────────────────────────
+   373→   373→
+   374→   374→function RegisterForm({
+   375→   375→  onRegister,
+   376→   376→  onLogin,
+   377→   377→}: {
+   378→   378→  onRegister: () => void
+   379→   379→  onLogin: () => void
+   380→   380→}) {
+   381→   381→  const [name, setName] = useState('')
+   382→   382→  const [email, setEmail] = useState('')
+   383→   383→  const [phone, setPhone] = useState('')
+   384→   384→  const [password, setPassword] = useState('')
+   385→   385→  const [confirmPassword, setConfirmPassword] = useState('')
+   386→   386→  const [referralCode, setReferralCode] = useState('')
+   387→   387→  const [acceptTerms, setAcceptTerms] = useState(false)
+   388→   388→  const [showPassword, setShowPassword] = useState(false)
+   389→   389→  const [isLoading, setIsLoading] = useState(false)
+   390→   390→  const [error, setError] = useState('')
+   391→   391→
+   392→   392→  const getPasswordStrength = () => {
+   393→   393→    if (!password) return { level: 0, label: '', color: '' }
+   394→   394→    let score = 0
+   395→   395→    if (password.length >= 8) score++
+   396→   396→    if (/[A-Z]/.test(password)) score++
+   397→   397→    if (/[0-9]/.test(password)) score++
+   398→   398→    if (/[^A-Za-z0-9]/.test(password)) score++
+   399→   399→    const levels = [
+   400→   400→      { level: 1, label: 'Weak', color: 'bg-red-500' },
+   401→   401→      { level: 2, label: 'Fair', color: 'bg-orange-500' },
+   402→   402→      { level: 3, label: 'Good', color: 'bg-yellow-500' },
+   403→   403→      { level: 4, label: 'Strong', color: 'bg-green-500' },
+   404→   404→    ]
+   405→   405→    return levels[score - 1] || { level: 0, label: '', color: '' }
+   406→   406→  }
+   407→   407→
+   408→   408→  const strength = getPasswordStrength()
+   409→   409→
+   410→   410→  const handleSubmit = async (e: React.FormEvent) => {
+   411→   411→    e.preventDefault()
+   412→   412→    setError('')
+   413→   413→
+   414→   414→    if (password !== confirmPassword) {
+   415→   415→      setError('Passwords do not match')
+   416→   416→      return
+   417→   417→    }
+   418→   418→    if (password.length < 8) {
+   419→   419→      setError('Password must be at least 8 characters')
+   420→   420→      return
+   421→   421→    }
+   422→   422→    if (!acceptTerms) {
+   423→   423→      setError('Please accept the terms and conditions')
+   424→   424→      return
+   425→   425→    }
+   426→   426→
+   427→   427→    setIsLoading(true)
+   428→   428→    try {
+   429→   429→      const res = await fetch('/api/auth/register', {
+   430→   430→        method: 'POST',
+   431→   431→        headers: { 'Content-Type': 'application/json' },
+   432→   432→        body: JSON.stringify({ name, email, phone, password }),
+   433→   433→      })
+   434→   434→      const data = await res.json()
+   435→   435→      setIsLoading(false)
+   436→   436→      if (!res.ok) {
+   437→   437→        setError(data.error || 'Registration failed')
+   438→   438→        return
+   439→   439→      }
+   440→   440→      onRegister()
+   441→   441→    } catch {
+   442→   442→      setError('Network error. Please try again.')
+   443→   443→      setIsLoading(false)
+   444→   444→    }
+   445→   445→  }
+   446→   446→
+   447→   447→  return (
+   448→   448→    <div>
+   449→   449→      <div className="mb-6">
+   450→   450→        <h2 className="text-2xl font-bold text-foreground">Create Account</h2>
+   451→   451→        <p className="text-sm text-muted-foreground mt-1">
+   452→   452→          Join ShopZone and start shopping today
+   453→   453→        </p>
+   454→   454→      </div>
+   455→   455→
+   456→   456→      <form onSubmit={handleSubmit} className="space-y-4">
+   457→   457→        <div className="space-y-2">
+   458→   458→          <Label htmlFor="reg-name">Full Name</Label>
+   459→   459→          <div className="relative">
+   460→   460→            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   461→   461→            <Input
+   462→   462→              id="reg-name"
+   463→   463→              type="text"
+   464→   464→              placeholder="Enter your full name"
+   465→   465→              value={name}
+   466→   466→              onChange={(e) => setName(e.target.value)}
+   467→   467→              className="pl-10 rounded-lg"
+   468→   468→              required
+   469→   469→            />
+   470→   470→          </div>
+   471→   471→        </div>
+   472→   472→
+   473→   473→        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   474→   474→          <div className="space-y-2">
+   475→   475→            <Label htmlFor="reg-email">Email</Label>
+   476→   476→            <div className="relative">
+   477→   477→              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   478→   478→              <Input
+   479→   479→                id="reg-email"
+   480→   480→                type="email"
+   481→   481→                placeholder="you@example.com"
+   482→   482→                value={email}
+   483→   483→                onChange={(e) => setEmail(e.target.value)}
+   484→   484→                className="pl-10 rounded-lg"
+   485→   485→                required
+   486→   486→              />
+   487→   487→            </div>
+   488→   488→          </div>
+   489→   489→          <div className="space-y-2">
+   490→   490→            <Label htmlFor="reg-phone">Phone</Label>
+   491→   491→            <div className="relative">
+   492→   492→              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   493→   493→              <Input
+   494→   494→                id="reg-phone"
+   495→   495→                type="tel"
+   496→   496→                placeholder="+91 XXXXX XXXXX"
+   497→   497→                value={phone}
+   498→   498→                onChange={(e) => setPhone(e.target.value)}
+   499→   499→                className="pl-10 rounded-lg"
+   500→   500→                required
+   501→   501→              />
+   502→   502→            </div>
+   503→   503→          </div>
+   504→   504→        </div>
+   505→   505→
+   506→   506→        <div className="space-y-2">
+   507→   507→          <Label htmlFor="reg-password">Password</Label>
+   508→   508→          <div className="relative">
+   509→   509→            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   510→   510→            <Input
+   511→   511→              id="reg-password"
+   512→   512→              type={showPassword ? 'text' : 'password'}
+   513→   513→              placeholder="Min. 8 characters"
+   514→   514→              value={password}
+   515→   515→              onChange={(e) => setPassword(e.target.value)}
+   516→   516→              className="pl-10 pr-10 rounded-lg"
+   517→   517→              required
+   518→   518→            />
+   519→   519→            <button
+   520→   520→              type="button"
+   521→   521→              onClick={() => setShowPassword(!showPassword)}
+   522→   522→              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+   523→   523→            >
+   524→   524→              {showPassword ? (
+   525→   525→                <EyeOff className="w-4 h-4" />
+   526→   526→              ) : (
+   527→   527→                <Eye className="w-4 h-4" />
+   528→   528→              )}
+   529→   529→            </button>
+   530→   530→          </div>
+   531→   531→          {/* Password strength indicator */}
+   532→   532→          {password && (
+   533→   533→            <div className="space-y-1.5">
+   534→   534→              <div className="flex gap-1">
+   535→   535→                {[1, 2, 3, 4].map((i) => (
+   536→   536→                  <div
+   537→   537→                    key={i}
+   538→   538→                    className={`h-1.5 flex-1 rounded-full transition-colors ${
+   539→   539→                      i <= strength.level ? strength.color : 'bg-muted'
+   540→   540→                    }`}
+   541→   541→                  />
+   542→   542→                ))}
+   543→   543→              </div>
+   544→   544→              <p className="text-xs text-muted-foreground">
+   545→   545→                Password strength:{' '}
+   546→   546→                <span className="font-medium">{strength.label}</span>
+   547→   547→              </p>
+   548→   548→            </div>
+   549→   549→          )}
+   550→   550→        </div>
+   551→   551→
+   552→   552→        <div className="space-y-2">
+   553→   553→          <Label htmlFor="reg-confirm">Confirm Password</Label>
+   554→   554→          <div className="relative">
+   555→   555→            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   556→   556→            <Input
+   557→   557→              id="reg-confirm"
+   558→   558→              type="password"
+   559→   559→              placeholder="Re-enter password"
+   560→   560→              value={confirmPassword}
+   561→   561→              onChange={(e) => setConfirmPassword(e.target.value)}
+   562→   562→              className="pl-10 rounded-lg"
+   563→   563→              required
+   564→   564→            />
+   565→   565→          </div>
+   566→   566→        </div>
+   567→   567→
+   568→   568→        <div className="space-y-2">
+   569→   569→          <Label htmlFor="reg-referral" className="text-muted-foreground">
+   570→   570→            Referral Code (Optional)
+   571→   571→          </Label>
+   572→   572→          <Input
+   573→   573→            id="reg-referral"
+   574→   574→            type="text"
+   575→   575→            placeholder="Enter referral code"
+   576→   576→            value={referralCode}
+   577→   577→            onChange={(e) => setReferralCode(e.target.value)}
+   578→   578→            className="rounded-lg"
+   579→   579→          />
+   580→   580→        </div>
+   581→   581→
+   582→   582→        {error && (
+   583→   583→          <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+   584→   584→        )}
+   585→   585→
+   586→   586→        <div className="flex items-start gap-2">
+   587→   587→          <Checkbox
+   588→   588→            id="reg-terms"
+   589→   589→            checked={acceptTerms}
+   590→   590→            onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+   591→   591→            className="mt-0.5"
+   592→   592→          />
+   593→   593→          <Label htmlFor="reg-terms" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+   594→   594→            I agree to the{' '}
+   595→   595→            <span className="text-orange-600 dark:text-orange-400 font-medium">
+   596→   596→              Terms of Service
+   597→   597→            </span>{' '}
+   598→   598→            and{' '}
+   599→   599→            <span className="text-orange-600 dark:text-orange-400 font-medium">
+   600→   600→              Privacy Policy
+   601→   601→            </span>
+   602→   602→          </Label>
+   603→   603→        </div>
+   604→   604→
+   605→   605→        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+   606→   606→          <Button
+   607→   607→            type="submit"
+   608→   608→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20"
+   609→   609→            disabled={isLoading}
+   610→   610→          >
+   611→   611→            {isLoading ? (
+   612→   612→              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   613→   613→            ) : (
+   614→   614→              <>
+   615→   615→                Register
+   616→   616→                <ArrowRight className="w-4 h-4 ml-2" />
+   617→   617→              </>
+   618→   618→            )}
+   619→   619→          </Button>
+   620→   620→        </motion.div>
+   621→   621→      </form>
+   622→   622→
+   623→   623→      <p className="text-center text-sm text-muted-foreground mt-5">
+   624→   624→        Already have an account?{' '}
+   625→   625→        <button
+   626→   626→          type="button"
+   627→   627→          onClick={onLogin}
+   628→   628→          className="text-orange-600 hover:text-orange-700 dark:text-orange-400 font-semibold"
+   629→   629→        >
+   630→   630→          Login
+   631→   631→        </button>
+   632→   632→      </p>
+   633→   633→    </div>
+   634→   634→  )
+   635→   635→}
+   636→   636→
+   637→   637→// ── OTP Verification Form ──────────────────────────────────────────────
+   638→   638→
+   639→   639→function OtpForm({
+   640→   640→  onVerify,
+   641→   641→  onBack,
+   642→   642→}: {
+   643→   643→  onVerify: () => void
+   644→   644→  onBack: () => void
+   645→   645→}) {
+   646→   646→  const [otp, setOtp] = useState('')
+   647→   647→  const [phone, setPhone] = useState('')
+   648→   648→  const [isLoading, setIsLoading] = useState(false)
+   649→   649→  const [resendTimer, setResendTimer] = useState(30)
+   650→   650→  const [otpSent, setOtpSent] = useState(false)
+   651→   651→
+   652→   652→  useEffect(() => {
+   653→   653→    if (resendTimer <= 0) return
+   654→   654→    const timer = setTimeout(() => setResendTimer((t) => t - 1), 1000)
+   655→   655→    return () => clearTimeout(timer)
+   656→   656→  }, [resendTimer])
+   657→   657→
+   658→   658→  const handleSendOtp = () => {
+   659→   659→    if (phone.length >= 10) {
+   660→   660→      setOtpSent(true)
+   661→   661→      setResendTimer(30)
+   662→   662→    }
+   663→   663→  }
+   664→   664→
+   665→   665→  const handleVerify = () => {
+   666→   666→    if (otp.length === 6) {
+   667→   667→      setIsLoading(true)
+   668→   668→      setTimeout(() => {
+   669→   669→        setIsLoading(false)
+   670→   670→        onVerify()
+   671→   671→      }, 1000)
+   672→   672→    }
+   673→   673→  }
+   674→   674→
+   675→   675→  const handleResend = () => {
+   676→   676→    setResendTimer(30)
+   677→   677→    setOtp('')
+   678→   678→  }
+   679→   679→
+   680→   680→  return (
+   681→   681→    <div>
+   682→   682→      <div className="mb-6">
+   683→   683→        <h2 className="text-2xl font-bold text-foreground">OTP Verification</h2>
+   684→   684→        <p className="text-sm text-muted-foreground mt-1">
+   685→   685→          {otpSent
+   686→   686→            ? `We've sent a 6-digit code to ${phone}`
+   687→   687→            : 'Enter your phone number to receive an OTP'}
+   688→   688→        </p>
+   689→   689→      </div>
+   690→   690→
+   691→   691→      {!otpSent ? (
+   692→   692→        <div className="space-y-4">
+   693→   693→          <div className="space-y-2">
+   694→   694→            <Label htmlFor="otp-phone">Phone Number</Label>
+   695→   695→            <div className="relative">
+   696→   696→              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   697→   697→              <Input
+   698→   698→                id="otp-phone"
+   699→   699→                type="tel"
+   700→   700→                placeholder="+91 XXXXX XXXXX"
+   701→   701→                value={phone}
+   702→   702→                onChange={(e) => setPhone(e.target.value)}
+   703→   703→                className="pl-10 rounded-lg"
+   704→   704→              />
+   705→   705→            </div>
+   706→   706→          </div>
+   707→   707→          <Button
+   708→   708→            onClick={handleSendOtp}
+   709→   709→            disabled={phone.length < 10}
+   710→   710→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold"
+   711→   711→          >
+   712→   712→            Send OTP
+   713→   713→            <ArrowRight className="w-4 h-4 ml-2" />
+   714→   714→          </Button>
+   715→   715→        </div>
+   716→   716→      ) : (
+   717→   717→        <div className="space-y-6">
+   718→   718→          <div className="space-y-3">
+   719→   719→            <Label className="text-center block">Enter 6-digit OTP</Label>
+   720→   720→            <div className="flex justify-center">
+   721→   721→              <InputOTP
+   722→   722→                maxLength={6}
+   723→   723→                value={otp}
+   724→   724→                onChange={setOtp}
+   725→   725→              >
+   726→   726→                <InputOTPGroup>
+   727→   727→                  <InputOTPSlot index={0} className="w-11 h-12 text-lg" />
+   728→   728→                  <InputOTPSlot index={1} className="w-11 h-12 text-lg" />
+   729→   729→                  <InputOTPSlot index={2} className="w-11 h-12 text-lg" />
+   730→   730→                </InputOTPGroup>
+   731→   731→                <InputOTPSeparator />
+   732→   732→                <InputOTPGroup>
+   733→   733→                  <InputOTPSlot index={3} className="w-11 h-12 text-lg" />
+   734→   734→                  <InputOTPSlot index={4} className="w-11 h-12 text-lg" />
+   735→   735→                  <InputOTPSlot index={5} className="w-11 h-12 text-lg" />
+   736→   736→                </InputOTPGroup>
+   737→   737→              </InputOTP>
+   738→   738→            </div>
+   739→   739→          </div>
+   740→   740→
+   741→   741→          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+   742→   742→            <Button
+   743→   743→              onClick={handleVerify}
+   744→   744→              disabled={otp.length < 6 || isLoading}
+   745→   745→              className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20"
+   746→   746→            >
+   747→   747→              {isLoading ? (
+   748→   748→                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   749→   749→              ) : (
+   750→   750→                <>
+   751→   751→                  Verify
+   752→   752→                  <ArrowRight className="w-4 h-4 ml-2" />
+   753→   753→                </>
+   754→   754→              )}
+   755→   755→            </Button>
+   756→   756→          </motion.div>
+   757→   757→
+   758→   758→          <div className="text-center">
+   759→   759→            {resendTimer > 0 ? (
+   760→   760→              <p className="text-sm text-muted-foreground">
+   761→   761→                Resend OTP in{' '}
+   762→   762→                <span className="font-semibold text-orange-600 dark:text-orange-400">
+   763→   763→                  {resendTimer}s
+   764→   764→                </span>
+   765→   765→              </p>
+   766→   766→            ) : (
+   767→   767→              <button
+   768→   768→                type="button"
+   769→   769→                onClick={handleResend}
+   770→   770→                className="text-sm text-orange-600 hover:text-orange-700 dark:text-orange-400 font-semibold"
+   771→   771→              >
+   772→   772→                Resend OTP
+   773→   773→              </button>
+   774→   774→            )}
+   775→   775→          </div>
+   776→   776→        </div>
+   777→   777→      )}
+   778→   778→
+   779→   779→      <button
+   780→   780→        type="button"
+   781→   781→        onClick={onBack}
+   782→   782→        className="block mx-auto text-sm text-muted-foreground hover:text-foreground mt-6"
+   783→   783→      >
+   784→   784→        ← Back to Login
+   785→   785→      </button>
+   786→   786→    </div>
+   787→   787→  )
+   788→   788→}
+   789→   789→
+   790→   790→// ── Forgot Password Form ───────────────────────────────────────────────
+   791→   791→
+   792→   792→function ForgotPasswordForm({
+   793→   793→  onBack,
+   794→   794→  onSuccess,
+   795→   795→}: {
+   796→   796→  onBack: () => void
+   797→   797→  onSuccess: () => void
+   798→   798→}) {
+   799→   799→  const [step, setStep] = useState<'email' | 'otp' | 'reset'>('email')
+   800→   800→  const [email, setEmail] = useState('')
+   801→   801→  const [otp, setOtp] = useState('')
+   802→   802→  const [newPassword, setNewPassword] = useState('')
+   803→   803→  const [confirmPassword, setConfirmPassword] = useState('')
+   804→   804→  const [showPassword, setShowPassword] = useState(false)
+   805→   805→  const [isLoading, setIsLoading] = useState(false)
+   806→   806→  const [resendTimer, setResendTimer] = useState(30)
+   807→   807→  const [error, setError] = useState('')
+   808→   808→
+   809→   809→  useEffect(() => {
+   810→   810→    if (resendTimer <= 0) return
+   811→   811→    const timer = setTimeout(() => setResendTimer((t) => t - 1), 1000)
+   812→   812→    return () => clearTimeout(timer)
+   813→   813→  }, [resendTimer])
+   814→   814→
+   815→   815→  const handleSendOtp = () => {
+   816→   816→    if (email) {
+   817→   817→      setIsLoading(true)
+   818→   818→      setTimeout(() => {
+   819→   819→        setIsLoading(false)
+   820→   820→        setStep('otp')
+   821→   821→        setResendTimer(30)
+   822→   822→      }, 800)
+   823→   823→    }
+   824→   824→  }
+   825→   825→
+   826→   826→  const handleVerifyOtp = () => {
+   827→   827→    if (otp.length === 6) {
+   828→   828→      setIsLoading(true)
+   829→   829→      setTimeout(() => {
+   830→   830→        setIsLoading(false)
+   831→   831→        setStep('reset')
+   832→   832→      }, 800)
+   833→   833→    }
+   834→   834→  }
+   835→   835→
+   836→   836→  const handleResetPassword = () => {
+   837→   837→    setError('')
+   838→   838→    if (newPassword.length < 8) {
+   839→   839→      setError('Password must be at least 8 characters')
+   840→   840→      return
+   841→   841→    }
+   842→   842→    if (newPassword !== confirmPassword) {
+   843→   843→      setError('Passwords do not match')
+   844→   844→      return
+   845→   845→    }
+   846→   846→    setIsLoading(true)
+   847→   847→    setTimeout(() => {
+   848→   848→      setIsLoading(false)
+   849→   849→      onSuccess()
+   850→   850→    }, 1000)
+   851→   851→  }
+   852→   852→
+   853→   853→  return (
+   854→   854→    <div>
+   855→   855→      <div className="mb-6">
+   856→   856→        <h2 className="text-2xl font-bold text-foreground">Forgot Password</h2>
+   857→   857→        <p className="text-sm text-muted-foreground mt-1">
+   858→   858→          {step === 'email' && 'Enter your email to receive a verification code'}
+   859→   859→          {step === 'otp' && `Enter the OTP sent to ${email}`}
+   860→   860→          {step === 'reset' && 'Set your new password'}
+   861→   861→        </p>
+   862→   862→      </div>
+   863→   863→
+   864→   864→      {step === 'email' && (
+   865→   865→        <div className="space-y-4">
+   866→   866→          <div className="space-y-2">
+   867→   867→            <Label htmlFor="fp-email">Email Address</Label>
+   868→   868→            <div className="relative">
+   869→   869→              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   870→   870→              <Input
+   871→   871→                id="fp-email"
+   872→   872→                type="email"
+   873→   873→                placeholder="you@example.com"
+   874→   874→                value={email}
+   875→   875→                onChange={(e) => setEmail(e.target.value)}
+   876→   876→                className="pl-10 rounded-lg"
+   877→   877→                required
+   878→   878→              />
+   879→   879→            </div>
+   880→   880→          </div>
+   881→   881→          <Button
+   882→   882→            onClick={handleSendOtp}
+   883→   883→            disabled={!email || isLoading}
+   884→   884→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold"
+   885→   885→          >
+   886→   886→            {isLoading ? (
+   887→   887→              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   888→   888→            ) : (
+   889→   889→              <>
+   890→   890→                Send OTP
+   891→   891→                <ArrowRight className="w-4 h-4 ml-2" />
+   892→   892→              </>
+   893→   893→            )}
+   894→   894→          </Button>
+   895→   895→        </div>
+   896→   896→      )}
+   897→   897→
+   898→   898→      {step === 'otp' && (
+   899→   899→        <div className="space-y-4">
+   900→   900→          <div className="space-y-3">
+   901→   901→            <Label className="text-center block">Enter 6-digit OTP</Label>
+   902→   902→            <div className="flex justify-center">
+   903→   903→              <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+   904→   904→                <InputOTPGroup>
+   905→   905→                  <InputOTPSlot index={0} className="w-11 h-12 text-lg" />
+   906→   906→                  <InputOTPSlot index={1} className="w-11 h-12 text-lg" />
+   907→   907→                  <InputOTPSlot index={2} className="w-11 h-12 text-lg" />
+   908→   908→                </InputOTPGroup>
+   909→   909→                <InputOTPSeparator />
+   910→   910→                <InputOTPGroup>
+   911→   911→                  <InputOTPSlot index={3} className="w-11 h-12 text-lg" />
+   912→   912→                  <InputOTPSlot index={4} className="w-11 h-12 text-lg" />
+   913→   913→                  <InputOTPSlot index={5} className="w-11 h-12 text-lg" />
+   914→   914→                </InputOTPGroup>
+   915→   915→              </InputOTP>
+   916→   916→            </div>
+   917→   917→          </div>
+   918→   918→
+   919→   919→          <Button
+   920→   920→            onClick={handleVerifyOtp}
+   921→   921→            disabled={otp.length < 6 || isLoading}
+   922→   922→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold"
+   923→   923→          >
+   924→   924→            {isLoading ? (
+   925→   925→              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   926→   926→            ) : (
+   927→   927→              'Verify OTP'
+   928→   928→            )}
+   929→   929→          </Button>
+   930→   930→
+   931→   931→          <div className="text-center">
+   932→   932→            {resendTimer > 0 ? (
+   933→   933→              <p className="text-sm text-muted-foreground">
+   934→   934→                Resend OTP in{' '}
+   935→   935→                <span className="font-semibold text-orange-600 dark:text-orange-400">
+   936→   936→                  {resendTimer}s
+   937→   937→                </span>
+   938→   938→              </p>
+   939→   939→            ) : (
+   940→   940→              <button
+   941→   941→                type="button"
+   942→   942→                onClick={() => setResendTimer(30)}
+   943→   943→                className="text-sm text-orange-600 hover:text-orange-700 dark:text-orange-400 font-semibold"
+   944→   944→              >
+   945→   945→                Resend OTP
+   946→   946→              </button>
+   947→   947→            )}
+   948→   948→          </div>
+   949→   949→        </div>
+   950→   950→      )}
+   951→   951→
+   952→   952→      {step === 'reset' && (
+   953→   953→        <div className="space-y-4">
+   954→   954→          <div className="space-y-2">
+   955→   955→            <Label htmlFor="fp-new-pass">New Password</Label>
+   956→   956→            <div className="relative">
+   957→   957→              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   958→   958→              <Input
+   959→   959→                id="fp-new-pass"
+   960→   960→                type={showPassword ? 'text' : 'password'}
+   961→   961→                placeholder="Min. 8 characters"
+   962→   962→                value={newPassword}
+   963→   963→                onChange={(e) => setNewPassword(e.target.value)}
+   964→   964→                className="pl-10 pr-10 rounded-lg"
+   965→   965→              />
+   966→   966→              <button
+   967→   967→                type="button"
+   968→   968→                onClick={() => setShowPassword(!showPassword)}
+   969→   969→                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+   970→   970→              >
+   971→   971→                {showPassword ? (
+   972→   972→                  <EyeOff className="w-4 h-4" />
+   973→   973→                ) : (
+   974→   974→                  <Eye className="w-4 h-4" />
+   975→   975→                )}
+   976→   976→              </button>
+   977→   977→            </div>
+   978→   978→          </div>
+   979→   979→
+   980→   980→          <div className="space-y-2">
+   981→   981→            <Label htmlFor="fp-confirm-pass">Confirm Password</Label>
+   982→   982→            <div className="relative">
+   983→   983→              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   984→   984→              <Input
+   985→   985→                id="fp-confirm-pass"
+   986→   986→                type="password"
+   987→   987→                placeholder="Re-enter password"
+   988→   988→                value={confirmPassword}
+   989→   989→                onChange={(e) => setConfirmPassword(e.target.value)}
+   990→   990→                className="pl-10 rounded-lg"
+   991→   991→              />
+   992→   992→            </div>
+   993→   993→          </div>
+   994→   994→
+   995→   995→          {error && (
+   996→   996→            <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+   997→   997→          )}
+   998→   998→
+   999→   999→          <Button
+  1000→  1000→            onClick={handleResetPassword}
+  1001→  1001→            disabled={!newPassword || !confirmPassword || isLoading}
+  1002→  1002→            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold"
+  1003→  1003→          >
+  1004→  1004→            {isLoading ? (
+  1005→  1005→              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1006→  1006→            ) : (
+  1007→  1007→              'Reset Password'
+  1008→  1008→            )}
+  1009→  1009→          </Button>
+  1010→  1010→        </div>
+  1011→  1011→      )}
+  1012→  1012→
+  1013→  1013→      <button
+  1014→  1014→        type="button"
+  1015→  1015→        onClick={onBack}
+  1016→  1016→        className="block mx-auto text-sm text-muted-foreground hover:text-foreground mt-6"
+  1017→  1017→      >
+  1018→  1018→        ← Back to Login
+  1019→  1019→      </button>
+  1020→  1020→    </div>
+  1021→  1021→  )
+  1022→  1022→}
+  1023→  1023→

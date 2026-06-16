@@ -50,41 +50,43 @@ interface Address {
   type: 'Home' | 'Work'
 }
 
-const mockAddresses: Address[] = [
-  {
-    id: 'addr-1',
-    name: 'Rahul Sharma',
-    phone: '+91 98765 43210',
-    line1: '42, Park Street, Sector 15',
-    line2: 'Near City Mall',
-    city: 'Gurugram',
-    state: 'Haryana',
-    pincode: '122001',
-    type: 'Home',
-  },
-  {
-    id: 'addr-2',
-    name: 'Rahul Sharma',
-    phone: '+91 98765 43210',
-    line1: 'Tower B, 12th Floor, Cyber Hub',
-    line2: 'DLF Phase 3',
-    city: 'Gurugram',
-    state: 'Haryana',
-    pincode: '122002',
-    type: 'Work',
-  },
-  {
-    id: 'addr-3',
-    name: 'Rahul Sharma',
-    phone: '+91 99887 76655',
-    line1: '15, MG Road, Indiranagar',
-    line2: '',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560038',
-    type: 'Home',
-  },
-]
+function getMockAddresses(userName: string, userPhone: string): Address[] {
+  return [
+    {
+      id: 'addr-1',
+      name: userName || 'User',
+      phone: userPhone || '+91 98765 43210',
+      line1: '42, Park Street, Sector 15',
+      line2: 'Near City Mall',
+      city: 'Gurugram',
+      state: 'Haryana',
+      pincode: '122001',
+      type: 'Home',
+    },
+    {
+      id: 'addr-2',
+      name: userName || 'User',
+      phone: userPhone || '+91 98765 43210',
+      line1: 'Tower B, 12th Floor, Cyber Hub',
+      line2: 'DLF Phase 3',
+      city: 'Gurugram',
+      state: 'Haryana',
+      pincode: '122002',
+      type: 'Work',
+    },
+    {
+      id: 'addr-3',
+      name: userName || 'User',
+      phone: userPhone || '+91 99887 76655',
+      line1: '15, MG Road, Indiranagar',
+      line2: '',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '560038',
+      type: 'Home',
+    },
+  ]
+}
 
 // ── Step type ─────────────────────────────────────────────────────────
 
@@ -133,7 +135,7 @@ export function CheckoutPage() {
     pincode: '',
     type: 'Home',
   })
-  const [addresses, setAddresses] = useState<Address[]>(mockAddresses)
+  const [addresses, setAddresses] = useState<Address[]>(getMockAddresses(auth.user?.name || '', auth.user?.phone || ''))
 
   // Redirect if cart is empty (unless on confirmation)
   useEffect(() => {

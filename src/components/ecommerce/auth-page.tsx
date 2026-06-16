@@ -11,6 +11,13 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
@@ -30,6 +37,17 @@ import {
   Sparkles,
 } from 'lucide-react'
 
+// ── User data type ────────────────────────────────────────────────────
+interface UserData {
+  id?: string
+  name?: string
+  email?: string
+  phone?: string
+  role?: string
+  walletBalance?: number
+  rewardPoints?: number
+}
+
 // ── Main Component ────────────────────────────────────────────────────
 
 export function AuthPage() {
@@ -38,16 +56,16 @@ export function AuthPage() {
   const navigate = useNavigationStore((s) => s.navigate)
   const { login } = useAuthStore()
 
-  const handleLoginSuccess = (userData?: { id?: string; name?: string; email?: string; phone?: string; role?: string; walletBalance?: number; rewardPoints?: number }) => {
+  const handleLoginSuccess = (userData: UserData) => {
     login({
-      id: userData?.id || 'user-1',
-      name: userData?.name || 'Rahul Sharma',
-      email: userData?.email || 'rahul@example.com',
-      phone: userData?.phone || '+91 98765 43210',
+      id: userData.id || 'user-' + Date.now(),
+      name: userData.name || 'User',
+      email: userData.email || '',
+      phone: userData.phone || '',
       avatar: '',
-      role: (userData?.role as 'customer' | 'seller' | 'admin') || 'customer',
-      walletBalance: userData?.walletBalance || 2500,
-      rewardPoints: userData?.rewardPoints || 1250,
+      role: (userData.role as 'customer' | 'seller' | 'admin') || 'customer',
+      walletBalance: userData.walletBalance || 0,
+      rewardPoints: userData.rewardPoints || 0,
     })
     navigate('home')
   }
@@ -176,6 +194,134 @@ function FormWrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ── Google Login Dialog ────────────────────────────────────────────────
+
+function GoogleLoginDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: (userData: UserData) => void
+}) {
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!email.trim()) { setError('Please enter your Gmail address'); return }
+    if (!email.includes('@gmail.com') && !email.includes('@googlemail.com')) {
+      setError('Please enter a valid Gmail address')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim() || email.split('@')[0],
+        }),
+      })
+      const data = await res.json()
+      setIsLoading(false)
+
+      if (res.ok && data.user) {
+        onSuccess(data.user)
+        onOpenChange(false)
+        setEmail('')
+        setName('')
+        setError('')
+      } else {
+        setError(data.error || 'Google login failed. Please try again.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-white border shadow-sm flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            </div>
+            Sign in with Google
+          </DialogTitle>
+          <DialogDescription>
+            Enter your Gmail address to sign in or create a ShopZone account
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          {error && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800">
+              {error}
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="google-email">Gmail Address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="google-email"
+                type="email"
+                placeholder="you@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-10 rounded-lg"
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="google-name">Your Name (optional)</Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="google-name"
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="pl-10 rounded-lg"
+              />
+            </div>
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-11 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-semibold"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                Continue with Google
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </>
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Login Form ─────────────────────────────────────────────────────────
 
 function LoginForm({
@@ -184,7 +330,7 @@ function LoginForm({
   onRegister,
   onOtpLogin,
 }: {
-  onLogin: (userData?: { id?: string; name?: string; email?: string; phone?: string; role?: string; walletBalance?: number; rewardPoints?: number }) => void
+  onLogin: (userData: UserData) => void
   onForgotPassword: () => void
   onRegister: () => void
   onOtpLogin: () => void
@@ -194,6 +340,7 @@ function LoginForm({
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [googleDialogOpen, setGoogleDialogOpen] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -320,24 +467,15 @@ function LoginForm({
             type="button"
             variant="outline"
             className="w-full h-11 rounded-xl font-medium"
-            onClick={async () => {
-              setIsLoading(true)
-              setError('')
-              try {
-                const res = await fetch('/api/auth/login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: 'google@shopzone.com', password: 'google123' }),
-                })
-                const data = await res.json()
-                setIsLoading(false)
-                if (res.ok) onLogin(data.user)
-                else onLogin()
-              } catch { setIsLoading(false); onLogin() }
-            }}
+            onClick={() => setGoogleDialogOpen(true)}
           >
-            <Chrome className="w-4 h-4 mr-2" />
-            Login with Google
+            <svg viewBox="0 0 24 24" className="w-4 h-4 mr-2">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Continue with Google
           </Button>
         </motion.div>
 
@@ -353,6 +491,13 @@ function LoginForm({
           </Button>
         </motion.div>
       </div>
+
+      {/* Google Login Dialog */}
+      <GoogleLoginDialog
+        open={googleDialogOpen}
+        onOpenChange={setGoogleDialogOpen}
+        onSuccess={onLogin}
+      />
 
       {/* Register link */}
       <p className="text-center text-sm text-muted-foreground mt-6">
@@ -375,7 +520,7 @@ function RegisterForm({
   onRegister,
   onLogin,
 }: {
-  onRegister: () => void
+  onRegister: (userData: UserData) => void
   onLogin: () => void
 }) {
   const [name, setName] = useState('')
@@ -437,7 +582,8 @@ function RegisterForm({
         setError(data.error || 'Registration failed')
         return
       }
-      onRegister()
+      // Pass user data from the API response so the name is the one they entered
+      onRegister(data.user)
     } catch {
       setError('Network error. Please try again.')
       setIsLoading(false)
@@ -640,14 +786,16 @@ function OtpForm({
   onVerify,
   onBack,
 }: {
-  onVerify: () => void
+  onVerify: (userData: UserData) => void
   onBack: () => void
 }) {
   const [otp, setOtp] = useState('')
   const [phone, setPhone] = useState('')
+  const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(30)
   const [otpSent, setOtpSent] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (resendTimer <= 0) return
@@ -665,9 +813,18 @@ function OtpForm({
   const handleVerify = () => {
     if (otp.length === 6) {
       setIsLoading(true)
+      // Simulate OTP verification and login with phone-based user
       setTimeout(() => {
         setIsLoading(false)
-        onVerify()
+        onVerify({
+          id: 'user-phone-' + Date.now(),
+          name: name || phone,
+          email: '',
+          phone: phone,
+          role: 'customer',
+          walletBalance: 0,
+          rewardPoints: 0,
+        })
       }, 1000)
     }
   }
@@ -691,6 +848,20 @@ function OtpForm({
       {!otpSent ? (
         <div className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="otp-name">Your Name</Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="otp-name"
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="pl-10 rounded-lg"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="otp-phone">Phone Number</Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -704,6 +875,9 @@ function OtpForm({
               />
             </div>
           </div>
+          {error && (
+            <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+          )}
           <Button
             onClick={handleSendOtp}
             disabled={phone.length < 10}
@@ -781,7 +955,7 @@ function OtpForm({
         onClick={onBack}
         className="block mx-auto text-sm text-muted-foreground hover:text-foreground mt-6"
       >
-        ← Back to Login
+        &larr; Back to Login
       </button>
     </div>
   )
@@ -805,6 +979,7 @@ function ForgotPasswordForm({
   const [isLoading, setIsLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(30)
   const [error, setError] = useState('')
+  const [generatedOtp, setGeneratedOtp] = useState('')
 
   useEffect(() => {
     if (resendTimer <= 0) return
@@ -812,14 +987,28 @@ function ForgotPasswordForm({
     return () => clearTimeout(timer)
   }, [resendTimer])
 
-  const handleSendOtp = () => {
-    if (email) {
-      setIsLoading(true)
-      setTimeout(() => {
-        setIsLoading(false)
+  const handleSendOtp = async () => {
+    if (!email.trim()) return
+    setIsLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const data = await res.json()
+      setIsLoading(false)
+      if (res.ok) {
         setStep('otp')
         setResendTimer(30)
-      }, 800)
+        setGeneratedOtp(data.otp || '')
+      } else {
+        setError(data.error || 'Failed to send OTP')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+      setIsLoading(false)
     }
   }
 
@@ -863,6 +1052,11 @@ function ForgotPasswordForm({
 
       {step === 'email' && (
         <div className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="fp-email">Email Address</Label>
             <div className="relative">
@@ -897,6 +1091,11 @@ function ForgotPasswordForm({
 
       {step === 'otp' && (
         <div className="space-y-4">
+          {generatedOtp && (
+            <div className="p-3 text-sm text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 rounded-lg border border-green-200 dark:border-green-800">
+              Demo OTP: <span className="font-bold">{generatedOtp}</span>
+            </div>
+          )}
           <div className="space-y-3">
             <Label className="text-center block">Enter 6-digit OTP</Label>
             <div className="flex justify-center">
@@ -1015,7 +1214,7 @@ function ForgotPasswordForm({
         onClick={onBack}
         className="block mx-auto text-sm text-muted-foreground hover:text-foreground mt-6"
       >
-        ← Back to Login
+        &larr; Back to Login
       </button>
     </div>
   )

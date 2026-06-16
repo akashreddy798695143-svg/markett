@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 interface User {
   id: string
@@ -21,14 +22,22 @@ interface AuthState {
   updateProfile: (data: Partial<User>) => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
-  isLoading: false,
-  login: (user) => set({ user, isAuthenticated: true }),
-  logout: () => set({ user: null, isAuthenticated: false }),
-  setLoading: (isLoading) => set({ isLoading }),
-  updateProfile: (data) => set((state) => ({
-    user: state.user ? { ...state.user, ...data } : null,
-  })),
-}))
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      login: (user) => set({ user, isAuthenticated: true }),
+      logout: () => set({ user: null, isAuthenticated: false }),
+      setLoading: (isLoading) => set({ isLoading }),
+      updateProfile: (data) => set((state) => ({
+        user: state.user ? { ...state.user, ...data } : null,
+      })),
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+    }
+  )
+)

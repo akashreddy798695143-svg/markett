@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword, createSession } from '@/lib/auth-utils'
+import { scryptSync, randomBytes } from 'crypto'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { name, email, phone, password } = body
 
-    // Validation
+    // Validate required fields
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
@@ -15,14 +15,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      )
-    }
-
-    // Email validation
+    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -31,7 +24,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user already exists
+    // Check if email is already registered
     const existingUser = await db.user.findUnique({
       where: { email },
     })
@@ -39,14 +32,16 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: 'Email already registered' },
-        { status: 409 }
+        { status: 400 }
       )
     }
 
-    // Hash password
-    const hashedPassword = hashPassword(password)
+    // Hash password using scryptSync
+    const salt = randomBytes(16).toString('hex')
+    const hash = scryptSync(password, salt, 64).toString('hex')
+    const hashedPassword = `${salt}:${hash}`
 
-    // Create user
+    // Create user in DB
     const user = await db.user.create({
       data: {
         name,
@@ -54,27 +49,24 @@ export async function POST(request: NextRequest) {
         phone: phone || null,
         password: hashedPassword,
         role: 'customer',
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        avatar: true,
-        walletBalance: true,
-        rewardPoints: true,
-        referralCode: true,
-        createdAt: true,
+        provider: 'email',
       },
     })
 
-    // Create session token
-    const token = createSession(user.id)
-
+    // Return user data (excluding password)
     return NextResponse.json(
-      { user, token },
-      { status: 201 }
+      {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          walletBalance: user.walletBalance,
+          rewardPoints: user.rewardPoints,
+        },
+      },
+      { status: 200 }
     )
   } catch (error) {
     console.error('Register API error:', error)
