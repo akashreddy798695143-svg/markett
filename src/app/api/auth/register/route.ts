@@ -68,10 +68,12 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 }
     )
+ // ... పైన ఉన్న కోడ్ అలాగే ఉంచు ...
   } catch (error) {
-    console.error('Register API error:', error)
+    // ఇక్కడ ఎర్రర్ దేనివల్ల వస్తుందో తెలుస్తుంది
+    console.error('Register API error details:', error); 
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: error instanceof Error ? error.message : 'Internal Server Error' },
       { status: 500 }
     )
   }
