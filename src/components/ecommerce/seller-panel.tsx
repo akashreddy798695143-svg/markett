@@ -897,6 +897,7 @@ function OrdersTab({ orders, filter, setFilter, expandedOrder, setExpandedOrder,
   toggleAllOrders: () => void
 }) {
   const statusFilters = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+  const filteredOrders = filter === 'All' ? orders : orders.filter(o => o.status === filter)
 
   return (
     <motion.div

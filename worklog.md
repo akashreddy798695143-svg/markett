@@ -3,6 +3,34 @@
 ## Project: ShopZone - World-Class E-Commerce Marketplace
 
 ---
+Task ID: 4
+Agent: Main Orchestrator
+Task: Make the project Vercel deployment-ready
+
+Work Log:
+- Switched Prisma schema strategy: kept SQLite for local dev, created prisma/schema.vercel.prisma with PostgreSQL provider for Vercel production
+- Updated .env to use SQLite locally with comments explaining PostgreSQL setup for Vercel
+- Updated next.config.ts: removed `output: "standalone"`, added `images.remotePatterns` for picsum.photos and images.unsplash.com
+- Created vercel.json with build command: `cp prisma/schema.vercel.prisma prisma/schema.prisma && npx prisma generate && next build`
+- Updated src/lib/db.ts to reduce query logging in production
+- Updated tsconfig.json to exclude `skills`, `mini-services`, and `examples` from TypeScript compilation
+- Removed `examples/` folder (caused build error with socket.io-client import)
+- Added missing `banners` mock data array in admin-panel.tsx (was referenced but never defined)
+- Fixed `filteredOrders` scope issue in seller-panel.tsx OrdersTab component (computed inside the component)
+- Updated .gitignore to exclude mini-services directory
+- Created comprehensive VERCEL_DEPLOYMENT.md with step-by-step deployment guide
+- Ran `next build` successfully — all 21 routes compiled (1 static page, 20 dynamic API + page routes)
+- Browser verification passed: registration shows 'Vercel User', all pages load correctly
+
+Stage Summary:
+- Project is fully Vercel deployment-ready
+- Build passes with zero errors
+- Database strategy: SQLite for local dev, PostgreSQL for Vercel production (auto-switched via vercel.json build command)
+- All Vercel-incompatible patterns fixed (SQLite, standalone output, socket.io-client, build errors)
+- Comprehensive deployment guide created at VERCEL_DEPLOYMENT.md
+- User just needs to: push to GitHub, import to Vercel, add DATABASE_URL env var, deploy
+
+---
 Task ID: 3
 Agent: Main Orchestrator
 Task: Fix login to show user-entered name, implement Google login, fix hardcoded 'Rahul Sharma' references

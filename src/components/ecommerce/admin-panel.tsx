@@ -103,6 +103,13 @@ const newUsersData = [
   { month: 'Dec', users: 350 },
 ]
 
+const banners = [
+  { id: 'b-1', title: 'Summer Sale', subtitle: 'Up to 70% off on fashion', image: 'https://picsum.photos/seed/banner1/600/200', position: 'Home', isActive: true, sortOrder: 1 },
+  { id: 'b-2', title: 'Electronics Fest', subtitle: 'Best deals on gadgets', image: 'https://picsum.photos/seed/banner2/600/200', position: 'Home', isActive: true, sortOrder: 2 },
+  { id: 'b-3', title: 'New Arrivals', subtitle: 'Fresh styles every week', image: 'https://picsum.photos/seed/banner3/600/200', position: 'Category', isActive: false, sortOrder: 3 },
+  { id: 'b-4', title: 'Mega Deals', subtitle: 'Grab before they\'re gone', image: 'https://picsum.photos/seed/banner4/600/200', position: 'Product', isActive: true, sortOrder: 4 },
+]
+
 // ==================== NAVIGATION CONFIG ====================
 const navTabs = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
