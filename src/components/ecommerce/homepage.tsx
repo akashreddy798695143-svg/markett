@@ -15,28 +15,17 @@ import {
   TrendingUp,
   Sparkles,
   Crown,
-  Smartphone,
-  QrCode,
   Apple,
   Play,
   Mail,
   ArrowRight,
   Flame,
   BadgeCheck,
-  ChevronDown,
+  QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselPrevious,
-  CarouselNext,
-} from '@/components/ui/carousel'
 import {
   banners,
   getTopLevelCategories,
@@ -50,10 +39,23 @@ import {
   brands,
   products,
 } from '@/lib/mock-data'
-import type { Product, Category, Review, Brand } from '@/lib/mock-data'
+import type { Product } from '@/lib/mock-data'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useCartStore } from '@/store/cart-store'
 import { useWishlistStore } from '@/store/wishlist-store'
+
+// ─── Extended Banner type ─────────────────────────────────────────────────────
+interface BannerExtended {
+  id: string
+  title: string
+  subtitle?: string
+  image?: string
+  bgColor?: string
+  isActive: boolean
+  badge?: string
+  category?: string
+  cta?: string
+}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const FLASH_SALE_END = new Date(Date.now() + 6 * 60 * 60 * 1000)
@@ -98,7 +100,7 @@ function StarRating({ rating, count, size = 14 }: { rating: number; count?: numb
   )
 }
 
-// ─── Product Card (reusable inline component) ────────────────────────────────
+// ─── Product Card ─────────────────────────────────────────────────────────────
 function ProductCard({
   product,
   badge,
@@ -162,14 +164,12 @@ function ProductCard({
       className="group relative flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 overflow-hidden cursor-pointer transition-shadow duration-300 hover:shadow-xl hover:shadow-orange-500/10"
       onClick={() => navigate('product-detail', { productId: product.id })}
     >
-      {/* Rank badge */}
       {rank !== undefined && (
         <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-lg">
           #{rank}
         </div>
       )}
 
-      {/* Image area */}
       <div className="relative aspect-square overflow-hidden bg-gray-50 dark:bg-zinc-800">
         <img
           src={product.images[0]}
@@ -178,19 +178,16 @@ function ProductCard({
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
 
-        {/* Discount badge */}
         {product.discount > 0 && (
           <Badge className="absolute top-2 left-2 z-10 bg-gradient-to-r from-red-500 to-orange-500 text-white border-0 text-[11px] font-semibold px-2 py-0.5">
             -{product.discount}%
           </Badge>
         )}
 
-        {/* Custom badge */}
         {badge && (
           <div className="absolute top-2 right-2 z-10">{badge}</div>
         )}
 
-        {/* Wishlist button */}
         <button
           onClick={handleWishlist}
           className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm flex items-center justify-center transition-all hover:bg-white dark:hover:bg-zinc-800 shadow-sm"
@@ -198,15 +195,10 @@ function ProductCard({
         >
           <Heart
             size={16}
-            className={
-              wishlisted
-                ? 'fill-red-500 text-red-500'
-                : 'text-gray-500 dark:text-gray-400'
-            }
+            className={wishlisted ? 'fill-red-500 text-red-500' : 'text-gray-500 dark:text-gray-400'}
           />
         </button>
 
-        {/* Quick View overlay */}
         <AnimatePresence>
           {isHovered && (
             <motion.div
@@ -232,22 +224,14 @@ function ProductCard({
         </AnimatePresence>
       </div>
 
-      {/* Info */}
       <div className="flex flex-col gap-1.5 p-3 flex-1">
-        {/* Brand */}
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           {getBrandName(product.brandId)}
         </span>
-
-        {/* Name */}
         <h3 className="text-sm font-medium leading-snug line-clamp-2 min-h-[2.5rem]">
           {product.name}
         </h3>
-
-        {/* Rating */}
         <StarRating rating={product.avgRating} count={product.totalReviews} size={12} />
-
-        {/* Price row */}
         <div className="flex items-baseline gap-2 mt-0.5">
           <span className="text-base font-bold text-gray-900 dark:text-gray-100">
             {formatPrice(product.salePrice)}
@@ -263,16 +247,12 @@ function ProductCard({
             </>
           )}
         </div>
-
-        {/* Free delivery */}
         {product.isFreeDelivery && (
           <div className="flex items-center gap-1 mt-0.5">
             <Truck size={12} className="text-emerald-500" />
             <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Free Delivery</span>
           </div>
         )}
-
-        {/* Add to cart */}
         <Button
           size="sm"
           className="mt-auto w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white border-0 shadow-md hover:shadow-lg transition-all gap-1.5 text-xs font-semibold"
@@ -286,7 +266,7 @@ function ProductCard({
   )
 }
 
-// ─── Section Wrapper with scroll animation ───────────────────────────────────
+// ─── Section Wrapper ──────────────────────────────────────────────────────────
 function AnimatedSection({
   children,
   className = '',
@@ -326,7 +306,11 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-2.5">
-        {icon && <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-md">{icon}</div>}
+        {icon && (
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-md">
+            {icon}
+          </div>
+        )}
         <div>
           <h2 className="text-xl md:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{title}</h2>
           {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
@@ -346,7 +330,7 @@ function SectionHeader({
   )
 }
 
-// ─── Horizontal Scroll Row ───────────────────────────────────────────────────
+// ─── Horizontal Scroll Row ────────────────────────────────────────────────────
 function HorizontalScroll({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`flex gap-4 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent ${className}`}>
@@ -360,6 +344,8 @@ function HorizontalScroll({ children, className = '' }: { children: React.ReactN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Homepage() {
   const navigate = useNavigationStore(s => s.navigate)
+  const addItem = useCartStore(s => s.addItem)
+  
   const topLevelCategories = useMemo(() => getTopLevelCategories(), [])
   const featuredProducts = useMemo(() => getFeaturedProducts(), [])
   const trendingProducts = useMemo(() => getTrendingProducts(), [])
@@ -368,10 +354,13 @@ export default function Homepage() {
   const flashSaleProducts = useMemo(() => getFlashSaleProducts(), [])
   const topBrands = useMemo(() => brands.slice(0, 12), [])
 
-  // ─── Hero Carousel State ─────────────────────────────────────────────────
+  // ─── Hero Carousel ────────────────────────────────────────────────────────
   const [heroIndex, setHeroIndex] = useState(0)
   const [heroPaused, setHeroPaused] = useState(false)
-  const activeBanners = useMemo(() => banners.filter(b => b.isActive), [])
+  const activeBanners = useMemo(
+    () => (banners.filter(b => b.isActive) as unknown as BannerExtended[]),
+    [],
+  )
 
   const nextSlide = useCallback(() => {
     setHeroIndex(prev => (prev + 1) % activeBanners.length)
@@ -387,7 +376,7 @@ export default function Homepage() {
     return () => clearInterval(timer)
   }, [nextSlide, heroPaused])
 
-  // ─── Flash Sale Countdown ────────────────────────────────────────────────
+  // ─── Flash Sale Countdown ─────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState({ hours: 6, minutes: 0, seconds: 0 })
 
   useEffect(() => {
@@ -408,24 +397,25 @@ export default function Homepage() {
     return () => clearInterval(timer)
   }, [])
 
-  // ─── Review Carousel ─────────────────────────────────────────────────────
+  // ─── Review Carousel ──────────────────────────────────────────────────────
   const [reviewIndex, setReviewIndex] = useState(0)
   const reviewsPerView = 3
+  const maxReviewIndex = Math.max(0, reviews.length - reviewsPerView)
 
   const nextReview = useCallback(() => {
-    setReviewIndex(prev => (prev + 1) % reviews.length)
-  }, [])
+    setReviewIndex(prev => (prev >= maxReviewIndex ? 0 : prev + 1))
+  }, [maxReviewIndex])
 
   const prevReview = useCallback(() => {
-    setReviewIndex(prev => (prev - 1 + reviews.length) % reviews.length)
-  }, [])
+    setReviewIndex(prev => (prev === 0 ? maxReviewIndex : prev - 1))
+  }, [maxReviewIndex])
 
   useEffect(() => {
     const timer = setInterval(nextReview, 4000)
     return () => clearInterval(timer)
   }, [nextReview])
 
-  // ─── Newsletter ──────────────────────────────────────────────────────────
+  // ─── Newsletter ───────────────────────────────────────────────────────────
   const [email, setEmail] = useState('')
   const [subscribed, setSubscribed] = useState(false)
 
@@ -437,7 +427,9 @@ export default function Homepage() {
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  const currentBanner = activeBanners[heroIndex]
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-zinc-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 space-y-12">
@@ -459,24 +451,20 @@ export default function Homepage() {
                   transition={{ duration: 0.7, ease: 'easeInOut' }}
                   className="absolute inset-0"
                 >
-                  {/* Background image */}
                   <motion.img
-                    src={activeBanners[heroIndex]?.image}
-                    alt={activeBanners[heroIndex]?.title}
+                    src={currentBanner?.image}
+                    alt={currentBanner?.title}
                     initial={{ scale: 1.1 }}
                     animate={{ scale: 1 }}
                     transition={{ duration: 7, ease: 'easeOut' }}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
-                  {/* Gradient overlay for readability */}
-                  <div className={`absolute inset-0 bg-gradient-to-r ${activeBanners[heroIndex]?.bgColor ?? 'from-zinc-900/80 to-zinc-900/60'}`} />
-                  {/* Subtle bottom fade */}
+                  <div className={`absolute inset-0 bg-gradient-to-r ${currentBanner?.bgColor ?? 'from-zinc-900/80 to-zinc-900/60'}`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
-                  {/* Content */}
                   <div className="relative h-full flex items-center px-6 sm:px-12 md:px-16 lg:px-20">
                     <div className="max-w-xl space-y-3 sm:space-y-4">
-                      {activeBanners[heroIndex]?.badge && (
+                      {currentBanner?.badge && (
                         <motion.span
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -484,7 +472,7 @@ export default function Homepage() {
                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-semibold tracking-wide uppercase shadow-lg"
                         >
                           <Sparkles size={12} />
-                          {activeBanners[heroIndex].badge}
+                          {currentBanner.badge}
                         </motion.span>
                       )}
                       <motion.h1
@@ -493,7 +481,7 @@ export default function Homepage() {
                         transition={{ delay: 0.25, duration: 0.5 }}
                         className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.05] drop-shadow-2xl"
                       >
-                        {activeBanners[heroIndex]?.title}
+                        {currentBanner?.title}
                       </motion.h1>
                       <motion.p
                         initial={{ opacity: 0, x: -20 }}
@@ -501,7 +489,7 @@ export default function Homepage() {
                         transition={{ delay: 0.4, duration: 0.5 }}
                         className="text-sm sm:text-base md:text-lg text-white/95 font-medium drop-shadow-lg max-w-lg"
                       >
-                        {activeBanners[heroIndex]?.subtitle}
+                        {currentBanner?.subtitle}
                       </motion.p>
                       <motion.div
                         initial={{ opacity: 0, y: 12 }}
@@ -515,13 +503,13 @@ export default function Homepage() {
                           onClick={() =>
                             navigate(
                               'products',
-                              activeBanners[heroIndex]?.category
-                                ? { category: activeBanners[heroIndex].category }
-                                : undefined
+                              currentBanner?.category
+                                ? { category: currentBanner.category }
+                                : undefined,
                             )
                           }
                         >
-                          {activeBanners[heroIndex]?.cta ?? 'Shop Now'}
+                          {currentBanner?.cta ?? 'Shop Now'}
                           <ArrowRight size={18} />
                         </Button>
                         <div className="flex items-center gap-2 text-white/90 text-xs sm:text-sm font-medium drop-shadow">
@@ -535,7 +523,6 @@ export default function Homepage() {
               </AnimatePresence>
             </div>
 
-            {/* Arrows */}
             <button
               onClick={prevSlide}
               className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-11 rounded-full bg-white/25 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/50 hover:scale-110 transition-all shadow-xl"
@@ -551,7 +538,6 @@ export default function Homepage() {
               <ChevronRight size={22} />
             </button>
 
-            {/* Dots */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
               {activeBanners.map((_, i) => (
                 <button
@@ -565,7 +551,6 @@ export default function Homepage() {
               ))}
             </div>
 
-            {/* Slide counter */}
             <div className="absolute top-4 right-4 z-20 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md text-white text-xs font-medium tabular-nums">
               {heroIndex + 1} / {activeBanners.length}
             </div>
@@ -592,12 +577,7 @@ export default function Homepage() {
                 className="flex flex-col items-center gap-2.5 min-w-[90px] sm:min-w-[100px] p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer group"
               >
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring-2 ring-orange-100 dark:ring-orange-900/50 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 group-hover:ring-orange-300 dark:group-hover:ring-orange-700 transition-all">
-                  <img
-                    src={cat.image}
-                    alt={cat.name}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={cat.image} alt={cat.name} loading="lazy" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 text-center leading-tight">
                   {cat.name}
@@ -649,10 +629,10 @@ export default function Homepage() {
               <HorizontalScroll>
                 {flashSaleProducts.map((product) => (
                   <div key={product.id} className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
-                    <div className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-red-100 dark:border-red-900/50 overflow-hidden group cursor-pointer hover:shadow-xl hover:shadow-red-500/10 transition-all"
+                    <div
+                      className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-red-100 dark:border-red-900/50 overflow-hidden group cursor-pointer hover:shadow-xl hover:shadow-red-500/10 transition-all"
                       onClick={() => navigate('product-detail', { productId: product.id })}
                     >
-                      {/* Stock urgency */}
                       {product.stock <= 15 && (
                         <Badge className="absolute top-1.5 right-1.5 z-10 bg-red-500 text-white border-0 text-[10px] animate-pulse">
                           Only {product.stock} left!
@@ -678,7 +658,7 @@ export default function Homepage() {
                           className="w-full mt-1 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white border-0 text-[11px] font-semibold shadow-md gap-1"
                           onClick={(e) => {
                             e.stopPropagation()
-                            useCartStore.getState().addItem({
+                            addItem({
                               id: `${product.id}-${Date.now()}`,
                               productId: product.id,
                               name: product.name,
@@ -730,7 +710,6 @@ export default function Homepage() {
         {/* ═══════════════════ 5. PROMOTIONAL BANNER (MID-PAGE) ═══════════════════ */}
         <AnimatedSection delay={0.1}>
           <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-orange-500 via-amber-500 to-emerald-500 p-8 sm:p-12 md:p-16">
-            {/* Decorative elements */}
             <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
             <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-xl" />
@@ -756,7 +735,7 @@ export default function Homepage() {
               </div>
               <Button
                 size="lg"
-                className="bg-white text-gray-900 hover:bg-gray-100 font-bold rounded-full shadow-2xl hover:shadow-3xl transition-all px-8 text-base gap-2 shrink-0"
+                className="bg-white text-gray-900 hover:bg-gray-100 font-bold rounded-full shadow-2xl transition-all px-8 text-base gap-2 shrink-0"
                 onClick={() => navigate('products')}
               >
                 Shop the Sale
@@ -934,7 +913,6 @@ export default function Homepage() {
                 })}
               </motion.div>
             </div>
-            {/* Arrows */}
             <button
               onClick={prevReview}
               className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-9 h-9 rounded-full bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors"
@@ -949,7 +927,6 @@ export default function Homepage() {
             >
               <ChevronRight size={18} />
             </button>
-            {/* Dots */}
             <div className="flex justify-center gap-1.5 mt-4">
               {reviews.map((_, i) => (
                 <button
@@ -969,7 +946,6 @@ export default function Homepage() {
         <AnimatedSection delay={0.1}>
           <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 via-zinc-900 to-gray-900 p-8 sm:p-12">
             <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
-              {/* Phone mockup */}
               <div className="relative flex-shrink-0">
                 <div className="relative w-48 sm:w-56">
                   <div className="w-full aspect-[9/18] rounded-[2rem] border-4 border-gray-700 bg-gradient-to-b from-zinc-800 to-zinc-900 overflow-hidden shadow-2xl shadow-orange-500/20">
@@ -989,12 +965,10 @@ export default function Homepage() {
                       <div className="h-1.5 w-1/3 rounded-full bg-gray-700" />
                     </div>
                   </div>
-                  {/* Notch */}
                   <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-3 rounded-full bg-gray-900 border border-gray-700" />
                 </div>
               </div>
 
-              {/* Content */}
               <div className="text-center md:text-left flex-1">
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mb-3">
                   Download the ShopZone App
@@ -1002,24 +976,20 @@ export default function Homepage() {
                 <p className="text-gray-400 text-sm sm:text-base max-w-md mb-6">
                   Get exclusive app-only deals, real-time order tracking, and a faster shopping experience. Available on iOS & Android.
                 </p>
-
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                  {/* QR Code placeholder */}
                   <div className="w-28 h-28 rounded-xl bg-white p-2 flex flex-col items-center justify-center shadow-lg">
                     <QrCode size={48} className="text-gray-900" />
                     <span className="text-[8px] text-gray-500 mt-1 font-medium">Scan to Download</span>
                   </div>
-
-                  {/* Store buttons */}
                   <div className="flex flex-col gap-2.5">
-                    <button className="flex items-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl transition-all group">
+                    <button className="flex items-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl transition-all">
                       <Apple size={24} className="text-white" />
                       <div className="text-left">
                         <div className="text-[10px] text-gray-400 leading-none">Download on the</div>
                         <div className="text-sm font-semibold text-white leading-tight">App Store</div>
                       </div>
                     </button>
-                    <button className="flex items-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl transition-all group">
+                    <button className="flex items-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl transition-all">
                       <Play size={24} className="text-white" />
                       <div className="text-left">
                         <div className="text-[10px] text-gray-400 leading-none">Get it on</div>
@@ -1036,23 +1006,15 @@ export default function Homepage() {
         {/* ═══════════════════ 12. NEWSLETTER SECTION ═══════════════════ */}
         <AnimatedSection delay={0.1}>
           <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 p-8 sm:p-12 text-center relative">
-            {/* Decorative elements */}
             <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3" />
             <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-y-1/2 translate-x-1/4" />
-
             <div className="relative max-w-lg mx-auto">
               <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-4">
                 <Mail size={28} className="text-white" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
-                Stay in the Loop
-              </h2>
-              <p className="text-white/90 mb-1 font-medium">
-                Get 10% off your first order
-              </p>
-              <p className="text-white/80 text-sm mb-6">
-                Subscribe for exclusive deals, new arrivals & insider-only discounts.
-              </p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">Stay in the Loop</h2>
+              <p className="text-white/90 mb-1 font-medium">Get 10% off your first order</p>
+              <p className="text-white/80 text-sm mb-6">Subscribe for exclusive deals, new arrivals & insider-only discounts.</p>
 
               {subscribed ? (
                 <motion.div
@@ -1082,7 +1044,6 @@ export default function Homepage() {
                   </Button>
                 </div>
               )}
-
               <p className="text-white/60 text-[11px] mt-4">No spam, unsubscribe anytime. We respect your privacy.</p>
             </div>
           </div>
