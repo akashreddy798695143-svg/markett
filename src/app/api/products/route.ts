@@ -21,6 +21,17 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
 
+    // Auto-seed the database on first access if it's empty
+    const productCount = await db.product.count()
+    if (productCount === 0) {
+      try {
+        const origin = request.nextUrl.origin
+        await fetch(`${origin}/api/seed`, { method: 'GET' })
+      } catch (e) {
+        console.error('Auto-seed failed:', e)
+      }
+    }
+
     // Build where clause
     const where: Record<string, unknown> = { isActive: true }
 

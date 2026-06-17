@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { scryptSync } from 'crypto'
+import { signToken } from '@/lib/auth-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Return user data (excluding password)
+    // Return user data (excluding password) + session token
     return NextResponse.json(
       {
         user: {
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
           walletBalance: user.walletBalance,
           rewardPoints: user.rewardPoints,
         },
+        token: signToken(user.id),
       },
       { status: 200 }
     )

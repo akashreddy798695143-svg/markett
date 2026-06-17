@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizePhone, isValidPhone } from '@/lib/sms'
+import { signToken } from '@/lib/auth-utils'
 
 /**
  * POST /api/auth/verify-otp
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Return the user object (excluding password)
+    // Return the user object (excluding password) + session token
     return NextResponse.json(
       {
         user: {
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
           walletBalance: user.walletBalance,
           rewardPoints: user.rewardPoints,
         },
+        token: signToken(user.id),
         message: 'OTP verified successfully',
       },
       { status: 200 }

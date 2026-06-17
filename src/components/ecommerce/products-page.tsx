@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   SlidersHorizontal,
@@ -14,7 +14,8 @@ import {
   X,
   Filter,
 } from 'lucide-react'
-import { products, categories, brands, formatPrice, type Product } from '@/lib/mock-data'
+import { formatPrice } from '@/lib/mock-data'
+import { apiGet } from '@/lib/api-client'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useCartStore } from '@/store/cart-store'
 import { useWishlistStore } from '@/store/wishlist-store'
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -55,6 +57,151 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
+
+// ==================== TYPES ====================
+interface Category {
+  id: string
+  name: string
+  slug: string
+  description?: string | null
+  image?: string | null
+  icon?: string | null
+  parentId: string | null
+  isActive: boolean
+  sortOrder?: number
+  productCount?: number
+}
+
+interface Brand {
+  id: string
+  name: string
+  slug: string
+  logo?: string | null
+  description?: string | null
+  isActive: boolean
+  productCount?: number
+}
+
+interface ApiProduct {
+  id: string
+  name: string
+  slug: string
+  description: string
+  shortDesc: string | null
+  categoryId: string
+  brandId: string | null
+  sellerId: string
+  basePrice: number
+  salePrice: number | null
+  images: string
+  colors: string | null
+  sizes: string | null
+  highlights: string | null
+  specifications: string | null
+  tags: string | null
+  stock: number
+  sku: string | null
+  weight: number | null
+  isFeatured: boolean
+  isNewArrival: boolean
+  isTrending: boolean
+  isBestSeller: boolean
+  isActive: boolean
+  avgRating: number
+  totalReviews: number
+  totalSold: number
+  discount: number
+  deliveryDays: number
+  isFreeDelivery: boolean
+  returnPolicy: string | null
+  warranty: string | null
+  createdAt: string
+  updatedAt: string
+  category: { id: string; name: string; slug: string }
+  brand: { id: string; name: string; slug: string; logo: string | null } | null
+  seller: { id: string; storeName: string; storeSlug: string; rating: number; isVerified: boolean }
+  reviews: { id: string; rating: number }[]
+}
+
+interface Product {
+  id: string
+  name: string
+  slug: string
+  description: string
+  shortDesc: string
+  categoryId: string
+  brandId: string
+  basePrice: number
+  salePrice: number
+  images: string[]
+  colors: string[]
+  sizes: string[]
+  highlights: string[]
+  stock: number
+  isFeatured: boolean
+  isNewArrival: boolean
+  isTrending: boolean
+  isBestSeller: boolean
+  isActive: boolean
+  avgRating: number
+  totalReviews: number
+  totalSold: number
+  discount: number
+  deliveryDays: number
+  isFreeDelivery: boolean
+  returnPolicy: string
+  warranty: string
+  brandName: string
+  categoryName: string
+}
+
+function parseJsonArray<T = string>(raw: string | null | undefined): T[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeProduct(p: ApiProduct): Product {
+  const images = parseJsonArray<string>(p.images)
+  const colors = parseJsonArray<string>(p.colors)
+  const sizes = parseJsonArray<string>(p.sizes)
+  const highlights = parseJsonArray<string>(p.highlights)
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description || '',
+    shortDesc: p.shortDesc || '',
+    categoryId: p.categoryId,
+    brandId: p.brandId || '',
+    basePrice: p.basePrice,
+    salePrice: p.salePrice ?? p.basePrice,
+    images,
+    colors,
+    sizes,
+    highlights,
+    stock: p.stock,
+    isFeatured: p.isFeatured,
+    isNewArrival: p.isNewArrival,
+    isTrending: p.isTrending,
+    isBestSeller: p.isBestSeller,
+    isActive: p.isActive,
+    avgRating: p.avgRating,
+    totalReviews: p.totalReviews,
+    totalSold: p.totalSold,
+    discount: p.discount,
+    deliveryDays: p.deliveryDays,
+    isFreeDelivery: p.isFreeDelivery,
+    returnPolicy: p.returnPolicy || '',
+    warranty: p.warranty || '',
+    brandName: p.brand?.name || '',
+    categoryName: p.category?.name || '',
+  }
+}
 
 // ==================== COLOR HELPER ====================
 const colorHexMap: Record<string, string> = {
@@ -188,6 +335,16 @@ type ViewMode = 'grid' | 'list'
 
 const ITEMS_PER_PAGE = 12
 
+// Map UI sort option → API sort param
+const SORT_API_MAP: Record<SortOption, string> = {
+  'relevance': '',
+  'price-asc': 'price_asc',
+  'price-desc': 'price_desc',
+  'rating': 'rating_desc',
+  'newest': 'newest',
+  'popularity': 'popularity',
+}
+
 // ==================== PRODUCT CARD ====================
 function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMode }) {
   const navigate = useNavigationStore((s) => s.navigate)
@@ -201,7 +358,7 @@ function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMo
       id: `${product.id}-${Date.now()}`,
       productId: product.id,
       name: product.name,
-      image: product.images[0],
+      image: product.images[0] || '',
       price: product.basePrice,
       salePrice: product.salePrice,
       quantity: 1,
@@ -221,7 +378,7 @@ function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMo
         id: product.id,
         productId: product.id,
         name: product.name,
-        image: product.images[0],
+        image: product.images[0] || '',
         price: product.basePrice,
         salePrice: product.salePrice,
         rating: product.avgRating,
@@ -268,7 +425,7 @@ function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMo
             <CardContent className="flex-1 p-4 flex flex-col justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">
-                  {brands.find(b => b.id === product.brandId)?.name}
+                  {product.brandName}
                 </p>
                 <h3 className="font-semibold text-sm line-clamp-2 mb-2">{product.name}</h3>
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{product.shortDesc}</p>
@@ -362,7 +519,7 @@ function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMo
         </div>
         <CardContent className="p-3 flex-1 flex flex-col">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
-            {brands.find(b => b.id === product.brandId)?.name}
+            {product.brandName}
           </p>
           <h3 className="font-medium text-sm line-clamp-2 mb-1.5 min-h-[2.5rem]">{product.name}</h3>
           <div className="flex items-center gap-1 mb-1.5">
@@ -399,15 +556,59 @@ function ProductCard({ product, viewMode }: { product: Product; viewMode: ViewMo
   )
 }
 
+// ==================== PRODUCT CARD SKELETON ====================
+function ProductCardSkeleton({ viewMode }: { viewMode: ViewMode }) {
+  if (viewMode === 'list') {
+    return (
+      <Card className="overflow-hidden">
+        <div className="flex flex-col sm:flex-row">
+          <Skeleton className="w-full sm:w-56 h-56 sm:h-auto flex-shrink-0" />
+          <CardContent className="flex-1 p-4 space-y-3">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+            <div className="flex justify-between items-center pt-2">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          </CardContent>
+        </div>
+      </Card>
+    )
+  }
+  return (
+    <Card className="overflow-hidden h-full flex flex-col">
+      <Skeleton className="aspect-square w-full" />
+      <CardContent className="p-3 flex-1 flex flex-col gap-2">
+        <Skeleton className="h-2 w-16" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-5 w-20" />
+        <Skeleton className="h-8 w-full mt-2" />
+      </CardContent>
+    </Card>
+  )
+}
+
 // ==================== FILTER SIDEBAR ====================
 function FilterSidebar({
   filters,
   setFilters,
   onClose,
+  categories,
+  brands,
+  allColors,
+  allSizes,
 }: {
   filters: FilterState
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>
   onClose?: () => void
+  categories: Category[]
+  brands: Brand[]
+  allColors: string[]
+  allSizes: string[]
 }) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     category: true,
@@ -424,37 +625,27 @@ function FilterSidebar({
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const topLevelCategories = useMemo(() => categories.filter((c) => c.parentId === null), [])
+  const topLevelCategories = useMemo(() => categories.filter((c) => c.parentId === null), [categories])
   const subCategories = useMemo(
     () => categories.filter((c) => c.parentId !== null),
-    []
+    [categories]
   )
-  const allColors = useMemo(() => {
-    const colorSet = new Set<string>()
-    products.forEach((p) => p.colors.forEach((c) => colorSet.add(c)))
-    return Array.from(colorSet)
-  }, [])
-  const allSizes = useMemo(() => {
-    const sizeSet = new Set<string>()
-    products.forEach((p) => p.sizes.forEach((s) => sizeSet.add(s)))
-    return Array.from(sizeSet)
-  }, [])
 
   const brandCountMap = useMemo(() => {
     const map: Record<string, number> = {}
-    products.forEach((p) => {
-      map[p.brandId] = (map[p.brandId] || 0) + 1
+    brands.forEach((b) => {
+      map[b.id] = b.productCount ?? 0
     })
     return map
-  }, [])
+  }, [brands])
 
   const categoryCountMap = useMemo(() => {
     const map: Record<string, number> = {}
-    products.forEach((p) => {
-      map[p.categoryId] = (map[p.categoryId] || 0) + 1
+    categories.forEach((c) => {
+      map[c.id] = c.productCount ?? 0
     })
     return map
-  }, [])
+  }, [categories])
 
   const clearAll = () => {
     setFilters(defaultFilters)
@@ -859,114 +1050,139 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
-  // selectedCategory is applied directly in the filter logic below
+  // ─── Catalog metadata (categories, brands, all colors/sizes) ───────────────
+  const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [allColors, setAllColors] = useState<string[]>([])
+  const [allSizes, setAllSizes] = useState<string[]>([])
 
-  // Apply filters and search
-  const filteredProducts = useMemo(() => {
-    let result = products.filter((p) => p.isActive)
+  useEffect(() => {
+    let cancelled = false
+    async function loadCatalog() {
+      try {
+        const [catRes, brandRes] = await Promise.all([
+          apiGet<{ allCategories?: Category[]; categories?: Category[] }>('/api/categories'),
+          apiGet<{ brands: Brand[] }>('/api/brands'),
+        ])
+        if (cancelled) return
+        const flatCats = catRes.allCategories ?? catRes.categories ?? []
+        setCategories(flatCats)
+        setBrands(brandRes.brands || [])
 
-    // Search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.description.toLowerCase().includes(query) ||
-          p.shortDesc.toLowerCase().includes(query) ||
-          p.tags.some((t) => t.toLowerCase().includes(query))
-      )
+        // Fetch a one-time larger product set to derive colors & sizes for the filter sidebar
+        try {
+          const facetRes = await apiGet<{ products: ApiProduct[] }>('/api/products?limit=200&page=1')
+          if (cancelled) return
+          const colorSet = new Set<string>()
+          const sizeSet = new Set<string>()
+          ;(facetRes.products || []).forEach((p) => {
+            parseJsonArray<string>(p.colors).forEach((c) => colorSet.add(c))
+            parseJsonArray<string>(p.sizes).forEach((s) => sizeSet.add(s))
+          })
+          setAllColors(Array.from(colorSet))
+          setAllSizes(Array.from(sizeSet))
+        } catch {
+          // Non-critical: facet data is optional
+        }
+      } catch {
+        // silent — UI will show empty filter sidebar
+      }
     }
+    loadCatalog()
+    return () => { cancelled = true }
+  }, [])
 
-    // Category filter (include subcategories + navigation category)
-    const categoryFilter = [...filters.categories]
-    if (selectedCategory && !categoryFilter.includes(selectedCategory)) {
-      categoryFilter.push(selectedCategory)
-    }
-    if (categoryFilter.length > 0) {
-      const allCategoryIds = new Set<string>()
-      categoryFilter.forEach(catId => {
-        allCategoryIds.add(catId)
-        // Add child categories
-        categories.filter(c => c.parentId === catId).forEach(c => allCategoryIds.add(c.id))
-      })
-      result = result.filter((p) => allCategoryIds.has(p.categoryId))
-    }
+  // ─── Product fetching (server-side filtering/pagination) ───────────────────
+  const [products, setProducts] = useState<Product[]>([])
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-    // Brand filter
-    if (filters.brands.length > 0) {
-      result = result.filter((p) => filters.brands.includes(p.brandId))
-    }
+  useEffect(() => {
+    let cancelled = false
+    async function loadProducts() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const params = new URLSearchParams()
+        params.set('page', String(currentPage))
+        params.set('limit', String(ITEMS_PER_PAGE))
 
-    // Price range
-    result = result.filter(
-      (p) => p.salePrice >= filters.priceRange[0] && p.salePrice <= filters.priceRange[1]
-    )
+        // Category — send first selected (or nav-selected) category; API auto-includes children
+        const activeCategory = filters.categories[0] || selectedCategory || ''
+        if (activeCategory) params.set('category', activeCategory)
 
-    // Rating
-    if (filters.rating !== null) {
-      result = result.filter((p) => p.avgRating >= filters.rating!)
-    }
+        // Brand — send first selected brand
+        if (filters.brands[0]) params.set('brand', filters.brands[0])
 
-    // Discount
-    if (filters.discount !== null) {
-      result = result.filter((p) => p.discount >= filters.discount!)
-    }
+        // Price range
+        if (filters.priceRange[0] > 0) params.set('minPrice', String(filters.priceRange[0]))
+        if (filters.priceRange[1] < 200000) params.set('maxPrice', String(filters.priceRange[1]))
 
-    // Color
-    if (filters.colors.length > 0) {
-      result = result.filter((p) => p.colors.some((c) => filters.colors.includes(c)))
-    }
+        // Sort
+        const apiSort = SORT_API_MAP[sortOption]
+        if (apiSort) params.set('sort', apiSort)
 
-    // Size
-    if (filters.sizes.length > 0) {
-      result = result.filter((p) => p.sizes.some((s) => filters.sizes.includes(s)))
-    }
+        // Search
+        if (searchQuery.trim()) params.set('search', searchQuery.trim())
 
-    // Free delivery
-    if (filters.freeDelivery) {
-      result = result.filter((p) => p.isFreeDelivery)
-    }
+        // Rating
+        if (filters.rating !== null) params.set('rating', String(filters.rating))
 
-    // Express delivery
-    if (filters.express) {
-      result = result.filter((p) => p.deliveryDays <= 2)
-    }
+        // Discount
+        if (filters.discount !== null) params.set('discount', String(filters.discount))
 
-    // Sorting
-    switch (sortOption) {
-      case 'price-asc':
-        result.sort((a, b) => a.salePrice - b.salePrice)
-        break
-      case 'price-desc':
-        result.sort((a, b) => b.salePrice - a.salePrice)
-        break
-      case 'rating':
-        result.sort((a, b) => b.avgRating - a.avgRating)
-        break
-      case 'newest':
-        result.sort((a, b) => (b.isNewArrival ? 1 : 0) - (a.isNewArrival ? 1 : 0))
-        break
-      case 'popularity':
-        result.sort((a, b) => b.totalSold - a.totalSold)
-        break
-      default:
-        // Relevance: featured first, then trending, then best seller
-        result.sort(
-          (a, b) =>
-            (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0) ||
-            (b.isTrending ? 1 : 0) - (a.isTrending ? 1 : 0)
+        const data = await apiGet<{ products: ApiProduct[]; total: number; page: number; totalPages: number }>(
+          `/api/products?${params.toString()}`
         )
+        if (cancelled) return
+
+        let normalized = (data.products || []).map(normalizeProduct)
+
+        // Client-side filtering for filters NOT supported by the API
+        // (multi-category, multi-brand, colors, sizes, free delivery, express)
+        const activeCategorySet = new Set(
+          selectedCategory && !filters.categories.includes(selectedCategory)
+            ? [...filters.categories, selectedCategory]
+            : filters.categories
+        )
+        if (activeCategorySet.size > 0) {
+          normalized = normalized.filter((p) => activeCategorySet.has(p.categoryId))
+        }
+        if (filters.brands.length > 0) {
+          normalized = normalized.filter((p) => filters.brands.includes(p.brandId))
+        }
+        if (filters.colors.length > 0) {
+          normalized = normalized.filter((p) => p.colors.some((c) => filters.colors.includes(c)))
+        }
+        if (filters.sizes.length > 0) {
+          normalized = normalized.filter((p) => p.sizes.some((s) => filters.sizes.includes(s)))
+        }
+        if (filters.freeDelivery) {
+          normalized = normalized.filter((p) => p.isFreeDelivery)
+        }
+        if (filters.express) {
+          normalized = normalized.filter((p) => p.deliveryDays <= 2)
+        }
+
+        setProducts(normalized)
+        setTotalProducts(data.total ?? normalized.length)
+        setTotalPages(data.totalPages ?? 0)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load products')
+          setProducts([])
+          setTotalProducts(0)
+          setTotalPages(0)
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
     }
-
-    return result
-  }, [searchQuery, filters, sortOption, selectedCategory])
-
-  // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE
-    return filteredProducts.slice(start, start + ITEMS_PER_PAGE)
-  }, [filteredProducts, currentPage])
+    loadProducts()
+    return () => { cancelled = true }
+  }, [filters, sortOption, currentPage, searchQuery, selectedCategory])
 
   // Reset page when filters change
   const handleFilterChange: React.Dispatch<React.SetStateAction<FilterState>> = useCallback(
@@ -992,6 +1208,8 @@ export default function ProductsPage() {
     return range
   }, [currentPage, totalPages])
 
+  const showEmptyState = !isLoading && !error && products.length === 0
+
   return (
     <div className="min-h-screen bg-gray-50/50">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -1003,14 +1221,16 @@ export default function ProductsPage() {
                 Search results for &ldquo;{searchQuery}&rdquo;
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                {totalProducts} product{totalProducts !== 1 ? 's' : ''} found
               </p>
             </div>
           )}
           {!searchQuery.trim() && selectedCategory && (
             <div className="mb-2">
               <h1 className="text-xl sm:text-2xl font-bold">
-                {categories.find((c) => c.id === selectedCategory)?.name || 'Products'}
+                {categories.find((c) => c.id === selectedCategory)?.name ||
+                  categories.find((c) => c.slug === selectedCategory)?.name ||
+                  'Products'}
               </h1>
             </div>
           )}
@@ -1024,7 +1244,14 @@ export default function ProductsPage() {
           {!isMobile && (
             <div className="w-64 flex-shrink-0">
               <div className="sticky top-4 bg-white rounded-lg border shadow-sm overflow-hidden">
-                <FilterSidebar filters={filters} setFilters={handleFilterChange} />
+                <FilterSidebar
+                  filters={filters}
+                  setFilters={handleFilterChange}
+                  categories={categories}
+                  brands={brands}
+                  allColors={allColors}
+                  allSizes={allSizes}
+                />
               </div>
             </div>
           )}
@@ -1050,12 +1277,16 @@ export default function ProductsPage() {
                         filters={filters}
                         setFilters={handleFilterChange}
                         onClose={() => setMobileFilterOpen(false)}
+                        categories={categories}
+                        brands={brands}
+                        allColors={allColors}
+                        allSizes={allSizes}
                       />
                     </SheetContent>
                   </Sheet>
                 )}
                 <span className="text-sm text-muted-foreground">
-                  {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
+                  {isLoading ? 'Loading...' : `${totalProducts} result${totalProducts !== 1 ? 's' : ''}`}
                 </span>
               </div>
 
@@ -1193,8 +1424,35 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {/* Product Grid */}
-            {paginatedProducts.length === 0 ? (
+            {/* Error State */}
+            {error && !isLoading && (
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+                <p className="text-muted-foreground mb-4">{error}</p>
+                <Button variant="outline" onClick={() => setCurrentPage((p) => p)}>
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {isLoading && (
+              <div
+                className={
+                  viewMode === 'grid'
+                    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
+                    : 'flex flex-col gap-4'
+                }
+              >
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <ProductCardSkeleton key={i} viewMode={viewMode} />
+                ))}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {showEmptyState && (
               <div className="text-center py-16">
                 <div className="text-6xl mb-4">🔍</div>
                 <h2 className="text-xl font-semibold mb-2">No products found</h2>
@@ -1211,7 +1469,10 @@ export default function ProductsPage() {
                   Clear All Filters
                 </Button>
               </div>
-            ) : (
+            )}
+
+            {/* Product Grid */}
+            {!isLoading && !error && products.length > 0 && (
               <>
                 <AnimatePresence mode="popLayout">
                   <div
@@ -1221,7 +1482,7 @@ export default function ProductsPage() {
                         : 'flex flex-col gap-4'
                     }
                   >
-                    {paginatedProducts.map((product) => (
+                    {products.map((product) => (
                       <ProductCard key={product.id} product={product} viewMode={viewMode} />
                     ))}
                   </div>

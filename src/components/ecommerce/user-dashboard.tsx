@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, Package, Heart, MapPin, Wallet, Tag, Star, Bell, Settings,
@@ -11,7 +11,8 @@ import { useAuthStore } from '@/store/auth-store'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useWishlistStore } from '@/store/wishlist-store'
 import { useCartStore } from '@/store/cart-store'
-import { formatPrice, coupons } from '@/lib/mock-data'
+import { formatPrice } from '@/lib/mock-data'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,76 +30,129 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
-// ==================== MOCK DATA ====================
-const mockOrders = [
-  {
-    id: 'ORD-2024-001',
-    date: '2024-03-15',
-    status: 'Delivered' as const,
-    items: [
-      { name: 'Samsung Galaxy S24 Ultra', image: 'https://picsum.photos/seed/s24ultra-1/80/80', price: 109999, qty: 1 },
-      { name: 'Samsung Galaxy Buds FE', image: 'https://picsum.photos/seed/buds-1/80/80', price: 2999, qty: 1 },
-    ],
-    total: 112998,
-    deliveryDate: '2024-03-18',
-    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
-  },
-  {
-    id: 'ORD-2024-002',
-    date: '2024-03-20',
-    status: 'Shipped' as const,
-    items: [
-      { name: 'Nike Air Max 270', image: 'https://picsum.photos/seed/nike-1/80/80', price: 12995, qty: 1 },
-    ],
-    total: 12995,
-    deliveryDate: '2024-03-24',
-    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
-    trackingId: 'TRK9876543210',
-  },
-  {
-    id: 'ORD-2024-003',
-    date: '2024-03-22',
-    status: 'Processing' as const,
-    items: [
-      { name: "Levi's 511 Slim Fit Jeans", image: 'https://picsum.photos/seed/levis-1/80/80', price: 2799, qty: 2 },
-      { name: 'H&M Cotton T-Shirt', image: 'https://picsum.photos/seed/hm-1/80/80', price: 799, qty: 3 },
-    ],
-    total: 7995,
-    deliveryDate: '2024-03-28',
-    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
-  },
-  {
-    id: 'ORD-2024-004',
-    date: '2024-02-10',
-    status: 'Cancelled' as const,
-    items: [
-      { name: 'Sony WH-1000XM5', image: 'https://picsum.photos/seed/sony-1/80/80', price: 26990, qty: 1 },
-    ],
-    total: 26990,
-    deliveryDate: null,
-    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
-  },
-  {
-    id: 'ORD-2024-005',
-    date: '2024-03-25',
-    status: 'Delivered' as const,
-    items: [
-      { name: 'Atomic Habits Book', image: 'https://picsum.photos/seed/book-1/80/80', price: 399, qty: 1 },
-    ],
-    total: 399,
-    deliveryDate: '2024-03-27',
-    address: '42 Park Avenue, Andheri West, Mumbai, Maharashtra - 400053',
-  },
-]
-
-function getMockAddresses(userName: string, userPhone: string) {
-  return [
-    { id: 'addr-1', name: userName || 'User', line1: '42 Park Avenue, Andheri West', line2: 'Near Metro Station', city: 'Mumbai', state: 'Maharashtra', pincode: '400053', phone: userPhone || '+91 98765 43210', type: 'Home' as const, isDefault: true },
-    { id: 'addr-2', name: userName || 'User', line1: 'WeWork, BKC, Tower 1', line2: '9th Floor, Bandra Kurla Complex', city: 'Mumbai', state: 'Maharashtra', pincode: '400051', phone: userPhone || '+91 98765 43210', type: 'Work' as const, isDefault: false },
-    { id: 'addr-3', name: userName || 'User', line1: '15, MG Road, Indiranagar', line2: '', city: 'Bengaluru', state: 'Karnataka', pincode: '560038', phone: userPhone || '+91 98765 43211', type: 'Home' as const, isDefault: false },
-  ]
+// ==================== API TYPES ====================
+interface ApiOrderItem {
+  id: string
+  productId: string
+  quantity: number
+  price: number
+  salePrice: number | null
+  total: number
+  status: string
+  product: {
+    id: string
+    name: string
+    slug: string
+    images: string
+    basePrice: number
+    salePrice: number | null
+  }
 }
 
+interface ApiOrder {
+  id: string
+  orderNumber: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string
+  subtotal: number
+  discount: number
+  tax: number
+  shipping: number
+  total: number
+  couponCode: string | null
+  addressId: string
+  notes: string | null
+  trackingId: string | null
+  trackingUrl: string | null
+  estimatedDelivery: string | null
+  deliveredAt: string | null
+  createdAt: string
+  items: ApiOrderItem[]
+}
+
+interface ApiAddress {
+  id: string
+  name: string
+  phone: string
+  addressLine1: string
+  addressLine2: string | null
+  city: string
+  state: string
+  pincode: string
+  country: string
+  isDefault: boolean
+  addressType: string
+}
+
+interface ApiNotification {
+  id: string
+  title: string
+  message: string
+  type: string
+  isRead: boolean
+  link: string | null
+  image: string | null
+  createdAt: string
+}
+
+interface ApiCoupon {
+  id: string
+  code: string
+  description: string | null
+  type: string
+  value: number
+  minOrder: number
+  maxDiscount: number | null
+  isActive: boolean
+  startsAt: string
+  expiresAt: string
+}
+
+// ==================== API HELPERS ====================
+function parseImages(imagesJson: string | null | undefined): string[] {
+  if (!imagesJson) return []
+  try {
+    const parsed = JSON.parse(imagesJson)
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function capitalizeStatus(s: string): string {
+  if (!s) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function normalizeNotifType(type: string): 'Orders' | 'Promos' | 'System' {
+  const t = (type || '').toLowerCase()
+  if (t === 'order' || t === 'orders') return 'Orders'
+  if (t === 'promo' || t === 'promos' || t === 'promotion') return 'Promos'
+  return 'System'
+}
+
+function formatRelativeTime(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    const diffMs = Date.now() - date.getTime()
+    const sec = Math.floor(diffMs / 1000)
+    if (sec < 60) return 'just now'
+    const min = Math.floor(sec / 60)
+    if (min < 60) return `${min} minute${min > 1 ? 's' : ''} ago`
+    const hr = Math.floor(min / 60)
+    if (hr < 24) return `${hr} hour${hr > 1 ? 's' : ''} ago`
+    const day = Math.floor(hr / 24)
+    if (day < 7) return `${day} day${day > 1 ? 's' : ''} ago`
+    const wk = Math.floor(day / 7)
+    if (wk < 4) return `${wk} week${wk > 1 ? 's' : ''} ago`
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
+// ==================== LOCAL FALLBACK DATA (no API yet) ====================
 const mockTransactions = [
   { id: 'txn-1', type: 'Credit' as const, amount: 500, description: 'Added via UPI', date: '2024-03-25' },
   { id: 'txn-2', type: 'Debit' as const, amount: 12995, description: 'Order ORD-2024-002 payment', date: '2024-03-20' },
@@ -114,17 +168,6 @@ const mockUserReviews = [
   { id: 'urev-1', productName: 'Samsung Galaxy S24 Ultra', productImage: 'https://picsum.photos/seed/s24ultra-1/80/80', rating: 5, text: 'Best phone I ever owned! The camera is absolutely stunning. S Pen integration is seamless. Battery easily lasts a full day. Worth every rupee!', date: '2024-03-15', helpful: 234 },
   { id: 'urev-2', productName: 'Nike Air Max 270', productImage: 'https://picsum.photos/seed/nike-1/80/80', rating: 4, text: 'The Air Max cushioning is so comfortable. I can wear these all day without any discomfort. Stylish enough for casual wear too.', date: '2024-03-01', helpful: 198 },
   { id: 'urev-3', productName: 'Atomic Habits Book', productImage: 'https://picsum.photos/seed/book-1/80/80', rating: 5, text: 'This book completely changed how I approach habits. The practical strategies are easy to implement. Must read for everyone!', date: '2024-01-10', helpful: 567 },
-]
-
-const mockNotifications = [
-  { id: 'notif-1', type: 'Orders' as const, title: 'Order Shipped!', message: 'Your order ORD-2024-002 has been shipped and will arrive by Mar 24.', time: '2 hours ago', isRead: false },
-  { id: 'notif-2', type: 'Promos' as const, title: 'Flash Sale Alert!', message: '50% off on electronics! Sale starts in 1 hour. Don\'t miss out!', time: '4 hours ago', isRead: false },
-  { id: 'notif-3', type: 'System' as const, title: 'Security Alert', message: 'New login detected from Chrome on Windows. If this wasn\'t you, please secure your account.', time: '1 day ago', isRead: true },
-  { id: 'notif-4', type: 'Orders' as const, title: 'Order Delivered', message: 'Your order ORD-2024-001 has been delivered. Rate your purchase!', time: '2 days ago', isRead: true },
-  { id: 'notif-5', type: 'Promos' as const, title: 'Coupon Unlocked!', message: 'You\'ve earned a special 30% off coupon. Use code SAVE30 on your next order.', time: '3 days ago', isRead: true },
-  { id: 'notif-6', type: 'System' as const, title: 'Profile Updated', message: 'Your profile has been updated successfully.', time: '5 days ago', isRead: true },
-  { id: 'notif-7', type: 'Orders' as const, title: 'Refund Processed', message: '₹26,990 refund for order ORD-2024-004 has been processed to your wallet.', time: '1 week ago', isRead: true },
-  { id: 'notif-8', type: 'Promos' as const, title: 'Weekend Sale!', message: 'Up to 60% off on fashion brands this weekend. Shop now!', time: '1 week ago', isRead: true },
 ]
 
 const usedCoupons = [
@@ -147,17 +190,22 @@ const navTabs = [
 
 // ==================== STATUS HELPERS ====================
 function getStatusColor(status: string) {
-  switch (status) {
-    case 'Processing': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-    case 'Shipped': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-    case 'Delivered': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-    case 'Cancelled': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-    default: return 'bg-gray-100 text-gray-800'
+  const s = (status || '').toLowerCase()
+  switch (s) {
+    case 'pending':
+    case 'confirmed':
+    case 'processing': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+    case 'shipped': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'delivered': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+    case 'cancelled':
+    case 'returned': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
   }
 }
 
 function getNotifIcon(type: string) {
-  switch (type) {
+  const t = normalizeNotifType(type)
+  switch (t) {
     case 'Orders': return Package
     case 'Promos': return Tag
     case 'System': return Settings
@@ -190,6 +238,40 @@ const tabVariants = {
   hidden: { opacity: 0, x: 20 },
   visible: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: -20 },
+}
+
+// ==================== LOADING / EMPTY STATES ====================
+function TabSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Card key={i}>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-lg bg-muted animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-1/3 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="h-3 w-2/3 bg-muted rounded animate-pulse" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="text-center py-12">
+      <X className="mx-auto mb-3 text-red-400" size={40} />
+      <p className="text-muted-foreground text-sm mb-3">{message}</p>
+      {onRetry && (
+        <Button size="sm" variant="outline" onClick={onRetry}>Try Again</Button>
+      )}
+    </div>
+  )
 }
 
 // ==================== MY PROFILE TAB ====================
@@ -382,15 +464,70 @@ function ProfileTab() {
 
 // ==================== MY ORDERS TAB ====================
 function OrdersTab() {
+  const [orders, setOrders] = useState<ApiOrder[]>([])
+  const [addresses, setAddresses] = useState<Record<string, ApiAddress>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('All')
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
 
+  const fetchOrders = () => {
+    setLoading(true)
+    setError(null)
+    setReloadKey((k) => k + 1)
+  }
+
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    Promise.all([
+      apiGet<{ orders: ApiOrder[] }>('/api/orders?limit=50'),
+      apiGet<{ addresses: ApiAddress[] }>('/api/addresses').catch(() => ({ addresses: [] })),
+    ])
+      .then(([data, addrData]) => {
+        if (!mounted) return
+        setOrders(data.orders || [])
+        const addrMap: Record<string, ApiAddress> = {}
+        ;(addrData.addresses || []).forEach((a) => { addrMap[a.id] = a })
+        setAddresses(addrMap)
+        setError(null)
+      })
+      .catch((err) => {
+        if (!mounted) return
+        setError(err?.message || 'Failed to load orders')
+      })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
+  }, [reloadKey])
+
   const filteredOrders = useMemo(() => {
-    if (filter === 'All') return mockOrders
-    return mockOrders.filter(o => o.status === filter)
-  }, [filter])
+    if (filter === 'All') return orders
+    return orders.filter(o => o.status?.toLowerCase() === filter.toLowerCase())
+  }, [filter, orders])
 
   const statusFilters = ['All', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+
+  if (loading) {
+    return (
+      <motion.div initial="hidden" animate="visible" exit="exit" variants={tabVariants} transition={{ duration: 0.3 }}>
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none mb-4">
+          {statusFilters.map((s) => (
+            <div key={s} className="h-8 w-24 bg-muted rounded-md animate-pulse shrink-0" />
+          ))}
+        </div>
+        <TabSkeleton rows={3} />
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div initial="hidden" animate="visible" exit="exit" variants={tabVariants} transition={{ duration: 0.3 }}>
+        <ErrorState message={error} onRetry={fetchOrders} />
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -429,145 +566,184 @@ function OrdersTab() {
           </motion.div>
         ) : (
           <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <motion.div
-                key={order.id}
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Card className="overflow-hidden">
-                  <CardContent className="p-4">
-                    {/* Order Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{order.id}</span>
-                          <Badge className={`${getStatusColor(order.status)} text-xs`}>
-                            {order.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Placed on {new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm">{formatPrice(order.total)}</p>
-                        <p className="text-xs text-muted-foreground">{order.items.length} item{order.items.length > 1 ? 's' : ''}</p>
-                      </div>
-                    </div>
-
-                    {/* Items Preview */}
-                    <div className="flex items-center gap-2 mb-3">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="relative">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-14 h-14 rounded-lg object-cover border"
-                          />
-                          {idx === 0 && order.items.length > 1 && (
-                            <Badge className="absolute -top-1.5 -right-1.5 text-[10px] h-5 min-w-5 flex items-center justify-center bg-orange-500 text-white">
-                              +{order.items.length - 1}
+            {filteredOrders.map((order) => {
+              const displayStatus = capitalizeStatus(order.status)
+              const statusLower = order.status?.toLowerCase()
+              const addr = addresses[order.addressId]
+              return (
+                <motion.div
+                  key={order.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="overflow-hidden">
+                    <CardContent className="p-4">
+                      {/* Order Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">{order.orderNumber}</span>
+                            <Badge className={`${getStatusColor(order.status)} text-xs`}>
+                              {displayStatus}
                             </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Placed on {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-sm">{formatPrice(order.total)}</p>
+                          <p className="text-xs text-muted-foreground">{order.items.length} item{order.items.length > 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+
+                      {/* Items Preview */}
+                      <div className="flex items-center gap-2 mb-3">
+                        {order.items.map((item, idx) => {
+                          const imgs = parseImages(item.product?.images)
+                          const img = imgs[0] || 'https://picsum.photos/seed/order-item/80/80'
+                          return (
+                            <div key={idx} className="relative">
+                              <img
+                                src={img}
+                                alt={item.product?.name || 'Product'}
+                                className="w-14 h-14 rounded-lg object-cover border"
+                              />
+                              {idx === 0 && order.items.length > 1 && (
+                                <Badge className="absolute -top-1.5 -right-1.5 text-[10px] h-5 min-w-5 flex items-center justify-center bg-orange-500 text-white">
+                                  +{order.items.length - 1}
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })}
+                        <div className="flex-1 min-w-0 ml-2">
+                          <p className="text-sm truncate">{order.items[0]?.product?.name || 'Item'}</p>
+                          {order.items.length > 1 && (
+                            <p className="text-xs text-muted-foreground">and {order.items.length - 1} more</p>
                           )}
                         </div>
-                      ))}
-                      <div className="flex-1 min-w-0 ml-2">
-                        <p className="text-sm truncate">{order.items[0].name}</p>
-                        {order.items.length > 1 && (
-                          <p className="text-xs text-muted-foreground">and {order.items.length - 1} more</p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-7"
+                          onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                        >
+                          <Eye size={12} className="mr-1" />
+                          {expandedOrder === order.id ? 'Hide Details' : 'View Details'}
+                        </Button>
+                        {statusLower === 'shipped' && (
+                          <Button size="sm" variant="outline" className="text-xs h-7">
+                            <Truck size={12} className="mr-1" /> Track Order
+                          </Button>
+                        )}
+                        {(statusLower === 'processing' || statusLower === 'pending' || statusLower === 'confirmed') && (
+                          <Button size="sm" variant="outline" className="text-xs h-7 text-red-500 hover:text-red-600">
+                            <X size={12} className="mr-1" /> Cancel
+                          </Button>
+                        )}
+                        {statusLower === 'delivered' && (
+                          <Button size="sm" variant="outline" className="text-xs h-7">
+                            <RotateCcw size={12} className="mr-1" /> Return/Exchange
+                          </Button>
                         )}
                       </div>
-                    </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-xs h-7"
-                        onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                      >
-                        <Eye size={12} className="mr-1" />
-                        {expandedOrder === order.id ? 'Hide Details' : 'View Details'}
-                      </Button>
-                      {order.status === 'Shipped' && (
-                        <Button size="sm" variant="outline" className="text-xs h-7">
-                          <Truck size={12} className="mr-1" /> Track Order
-                        </Button>
-                      )}
-                      {order.status === 'Processing' && (
-                        <Button size="sm" variant="outline" className="text-xs h-7 text-red-500 hover:text-red-600">
-                          <X size={12} className="mr-1" /> Cancel
-                        </Button>
-                      )}
-                      {order.status === 'Delivered' && (
-                        <Button size="sm" variant="outline" className="text-xs h-7">
-                          <RotateCcw size={12} className="mr-1" /> Return/Exchange
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Expanded Details */}
-                    <AnimatePresence>
-                      {expandedOrder === order.id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <Separator className="my-3" />
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-medium">Order Items</h4>
-                            {order.items.map((item, idx) => (
-                              <div key={idx} className="flex items-center gap-3">
-                                <img src={item.image} alt={item.name} className="w-12 h-12 rounded-lg object-cover border" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">{item.name}</p>
-                                  <p className="text-xs text-muted-foreground">Qty: {item.qty}</p>
-                                </div>
-                                <p className="text-sm font-semibold">{formatPrice(item.price)}</p>
+                      {/* Expanded Details */}
+                      <AnimatePresence>
+                        {expandedOrder === order.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <Separator className="my-3" />
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium">Order Items</h4>
+                              {order.items.map((item, idx) => {
+                                const imgs = parseImages(item.product?.images)
+                                const img = imgs[0] || 'https://picsum.photos/seed/order-item/80/80'
+                                const itemPrice = item.salePrice ?? item.price
+                                return (
+                                  <div key={idx} className="flex items-center gap-3">
+                                    <img src={img} alt={item.product?.name || 'Product'} className="w-12 h-12 rounded-lg object-cover border" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{item.product?.name || 'Item'}</p>
+                                      <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                                    </div>
+                                    <p className="text-sm font-semibold">{formatPrice(itemPrice)}</p>
+                                  </div>
+                                )
+                              })}
+                              <Separator />
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                {addr && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Delivery Address</p>
+                                    <p className="text-xs">
+                                      {addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}, {addr.city}, {addr.state} - {addr.pincode}
+                                    </p>
+                                  </div>
+                                )}
+                                {(order.deliveredAt || order.estimatedDelivery) && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {statusLower === 'delivered' ? 'Delivered On' : 'Expected Delivery'}
+                                    </p>
+                                    <p className="text-xs">
+                                      {new Date(order.deliveredAt || order.estimatedDelivery || '').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </p>
+                                  </div>
+                                )}
+                                {order.trackingId && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Tracking ID</p>
+                                    <p className="text-xs font-mono">{order.trackingId}</p>
+                                  </div>
+                                )}
+                                {order.couponCode && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Coupon Applied</p>
+                                    <p className="text-xs font-mono">{order.couponCode}</p>
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                            <Separator />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Delivery Address</p>
-                                <p className="text-xs">{order.address}</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                                <div>
+                                  <p className="text-muted-foreground">Subtotal</p>
+                                  <p>{formatPrice(order.subtotal)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Discount</p>
+                                  <p className="text-emerald-600 dark:text-emerald-400">-{formatPrice(order.discount)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Tax & Shipping</p>
+                                  <p>{formatPrice(order.tax + order.shipping)}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-muted-foreground">Total</p>
+                                  <p className="font-bold">{formatPrice(order.total)}</p>
+                                </div>
                               </div>
-                              {order.deliveryDate && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    {order.status === 'Delivered' ? 'Delivered On' : 'Expected Delivery'}
-                                  </p>
-                                  <p className="text-xs">
-                                    {new Date(order.deliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                  </p>
-                                </div>
-                              )}
-                              {order.trackingId && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Tracking ID</p>
-                                  <p className="text-xs font-mono">{order.trackingId}</p>
-                                </div>
-                              )}
                             </div>
-                            <div className="flex justify-end pt-1">
-                              <p className="text-sm font-bold">Total: {formatPrice(order.total)}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )
+            })}
           </div>
         )}
       </AnimatePresence>
@@ -644,7 +820,7 @@ function WishlistTab() {
                     size="icon"
                     variant="secondary"
                     className="absolute top-2 right-2 h-8 w-8 bg-white/80 backdrop-blur-sm hover:bg-red-50"
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => { void removeItem(item.productId) }}
                   >
                     <X size={14} className="text-red-500" />
                   </Button>
@@ -696,46 +872,111 @@ function WishlistTab() {
 // ==================== MY ADDRESSES TAB ====================
 function AddressesTab() {
   const { user } = useAuthStore()
-  const [addresses, setAddresses] = useState(getMockAddresses(user?.name || '', user?.phone || ''))
+  const [addresses, setAddresses] = useState<ApiAddress[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingAddr, setEditingAddr] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    name: '', line1: '', line2: '', city: '', state: '', pincode: '', phone: '', type: 'Home' as 'Home' | 'Work',
+    name: user?.name || '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phone: user?.phone || '',
+    type: 'home' as 'home' | 'work',
+    isDefault: false,
   })
 
   const resetForm = () => {
-    setFormData({ name: '', line1: '', line2: '', city: '', state: '', pincode: '', phone: '', type: 'Home' })
+    setFormData({
+      name: user?.name || '',
+      line1: '', line2: '', city: '', state: '', pincode: '',
+      phone: user?.phone || '', type: 'home', isDefault: false,
+    })
   }
 
-  const handleEditAddr = (addr: typeof addresses[0]) => {
+  const fetchAddresses = () => {
+    setLoading(true)
+    setError(null)
+    setReloadKey((k) => k + 1)
+  }
+
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    apiGet<{ addresses: ApiAddress[] }>('/api/addresses')
+      .then((data) => { if (mounted) { setAddresses(data.addresses || []); setError(null) } })
+      .catch((err) => { if (mounted) setError(err?.message || 'Failed to load addresses') })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
+  }, [reloadKey])
+
+  const handleEditAddr = (addr: ApiAddress) => {
     setFormData({
-      name: addr.name, line1: addr.line1, line2: addr.line2,
-      city: addr.city, state: addr.state, pincode: addr.pincode,
-      phone: addr.phone, type: addr.type,
+      name: addr.name,
+      line1: addr.addressLine1,
+      line2: addr.addressLine2 || '',
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      phone: addr.phone,
+      type: (addr.addressType?.toLowerCase() === 'work' ? 'work' : 'home'),
+      isDefault: addr.isDefault,
     })
     setEditingAddr(addr.id)
     setShowAddForm(true)
   }
 
-  const handleSaveAddr = () => {
-    if (editingAddr) {
-      setAddresses(prev => prev.map(a =>
-        a.id === editingAddr ? { ...a, ...formData } : a
-      ))
-    } else {
-      setAddresses(prev => [...prev, {
-        id: `addr-${Date.now()}`,
-        ...formData,
-        isDefault: prev.length === 0,
-      }])
+  const handleSaveAddr = async () => {
+    if (!formData.name || !formData.phone || !formData.line1 || !formData.city || !formData.state || !formData.pincode) {
+      return
     }
-    setShowAddForm(false)
-    setEditingAddr(null)
-    resetForm()
+    setSubmitting(true)
+    try {
+      const payload = {
+        name: formData.name,
+        phone: formData.phone,
+        addressLine1: formData.line1,
+        addressLine2: formData.line2 || undefined,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        country: 'India',
+        addressType: formData.type,
+        isDefault: formData.isDefault,
+      }
+      if (editingAddr) {
+        await apiPut('/api/addresses', { id: editingAddr, ...payload })
+      } else {
+        await apiPost('/api/addresses', payload)
+      }
+      setShowAddForm(false)
+      setEditingAddr(null)
+      resetForm()
+      fetchAddresses()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save address'
+      setError(message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleDeleteAddr = (id: string) => {
-    setAddresses(prev => prev.filter(a => a.id !== id))
+  const handleDeleteAddr = async (id: string) => {
+    setSubmitting(true)
+    try {
+      await apiDelete(`/api/addresses/${encodeURIComponent(id)}`)
+      fetchAddresses()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete address'
+      setError(message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -797,75 +1038,101 @@ function AddressesTab() {
               </div>
               <div>
                 <Label className="text-xs mb-2 block">Address Type</Label>
-                <RadioGroup value={formData.type} onValueChange={(v) => setFormData(p => ({ ...p, type: v as 'Home' | 'Work' }))} className="flex gap-4">
+                <RadioGroup value={formData.type} onValueChange={(v) => setFormData(p => ({ ...p, type: v as 'home' | 'work' }))} className="flex gap-4">
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Home" id="type-home" />
+                    <RadioGroupItem value="home" id="type-home" />
                     <Label htmlFor="type-home" className="text-sm cursor-pointer">Home</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Work" id="type-work" />
+                    <RadioGroupItem value="work" id="type-work" />
                     <Label htmlFor="type-work" className="text-sm cursor-pointer">Work</Label>
                   </div>
                 </RadioGroup>
               </div>
+              <div className="flex items-center space-x-2 pt-1">
+                <Checkbox
+                  id="addr-default"
+                  checked={formData.isDefault}
+                  onCheckedChange={(v) => setFormData(p => ({ ...p, isDefault: v === true }))}
+                />
+                <Label htmlFor="addr-default" className="text-sm cursor-pointer">Set as default address</Label>
+              </div>
             </div>
             <DialogFooter>
               <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
+                <Button variant="outline" disabled={submitting}>Cancel</Button>
               </DialogClose>
-              <Button onClick={handleSaveAddr} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white">
-                {editingAddr ? 'Save Changes' : 'Add Address'}
+              <Button onClick={() => { void handleSaveAddr() }} disabled={submitting} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white">
+                {submitting ? 'Saving...' : editingAddr ? 'Save Changes' : 'Add Address'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="space-y-3">
-        {addresses.map((addr) => (
-          <motion.div
-            key={addr.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{addr.name}</span>
-                      <Badge variant="outline" className={`text-[10px] h-5 ${
-                        addr.type === 'Home' ? 'border-emerald-300 text-emerald-600' : 'border-blue-300 text-blue-600'
-                      }`}>
-                        {addr.type}
-                      </Badge>
-                      {addr.isDefault && (
-                        <Badge className="text-[10px] h-5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">Default</Badge>
-                      )}
+      {loading ? (
+        <TabSkeleton rows={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={fetchAddresses} />
+      ) : addresses.length === 0 ? (
+        <div className="text-center py-12">
+          <MapPin className="mx-auto mb-3 text-muted-foreground" size={48} />
+          <p className="text-muted-foreground">No saved addresses yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Add an address to make checkout faster.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {addresses.map((addr) => {
+            const typeLabel = addr.addressType
+              ? addr.addressType.charAt(0).toUpperCase() + addr.addressType.slice(1)
+              : 'Home'
+            const isWork = addr.addressType?.toLowerCase() === 'work'
+            return (
+              <motion.div
+                key={addr.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{addr.name}</span>
+                          <Badge variant="outline" className={`text-[10px] h-5 ${
+                            isWork ? 'border-blue-300 text-blue-600' : 'border-emerald-300 text-emerald-600'
+                          }`}>
+                            {typeLabel}
+                          </Badge>
+                          {addr.isDefault && (
+                            <Badge className="text-[10px] h-5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">Default</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {addr.city}, {addr.state} - {addr.pincode}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">{addr.phone}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEditAddr(addr)}>
+                          <Edit size={14} className="text-muted-foreground" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={submitting} onClick={() => { void handleDeleteAddr(addr.id) }}>
+                          <Trash2 size={14} className="text-red-500" />
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {addr.city}, {addr.state} - {addr.pincode}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">{addr.phone}</p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEditAddr(addr)}>
-                      <Edit size={14} className="text-muted-foreground" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDeleteAddr(addr.id)}>
-                      <Trash2 size={14} className="text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -983,7 +1250,27 @@ function WalletTab() {
 
 // ==================== MY COUPONS TAB ====================
 function CouponsTab() {
+  const [coupons, setCoupons] = useState<ApiCoupon[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+
+  const fetchCoupons = () => {
+    setLoading(true)
+    setError(null)
+    setReloadKey((k) => k + 1)
+  }
+
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    apiGet<{ coupons: ApiCoupon[] }>('/api/coupons')
+      .then((data) => { if (mounted) { setCoupons(data.coupons || []); setError(null) } })
+      .catch((err) => { if (mounted) setError(err?.message || 'Failed to load coupons') })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
+  }, [reloadKey])
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code)
@@ -1003,57 +1290,69 @@ function CouponsTab() {
       {/* Available Coupons */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Available Coupons</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {coupons.map((coupon) => (
-            <motion.div
-              key={coupon.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className="overflow-hidden group hover:shadow-md transition-shadow">
-                <div className="flex">
-                  {/* Left side - discount */}
-                  <div className="w-20 shrink-0 bg-gradient-to-br from-orange-500 to-amber-500 flex flex-col items-center justify-center text-white p-2 relative">
-                    <span className="text-xl font-bold">
-                      {coupon.type === 'percentage' ? `${coupon.value}%` : formatPrice(coupon.value)}
-                    </span>
-                    <span className="text-[10px] opacity-80">OFF</span>
-                    <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background rounded-full" />
-                    <div className="absolute -right-2 bottom-0 w-4 h-2 bg-background" />
-                    <div className="absolute -right-2 top-0 w-4 h-2 bg-background" />
-                  </div>
-                  {/* Right side - details */}
-                  <div className="flex-1 p-3 flex flex-col justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{coupon.description}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Min order: {formatPrice(coupon.minOrder)}
-                      </p>
+        {loading ? (
+          <TabSkeleton rows={2} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={fetchCoupons} />
+        ) : coupons.length === 0 ? (
+          <div className="text-center py-12">
+            <Tag className="mx-auto mb-3 text-muted-foreground" size={48} />
+            <p className="text-muted-foreground">No coupons available right now</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {coupons.map((coupon) => (
+              <motion.div
+                key={coupon.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card className="overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="flex">
+                    {/* Left side - discount */}
+                    <div className="w-20 shrink-0 bg-gradient-to-br from-orange-500 to-amber-500 flex flex-col items-center justify-center text-white p-2 relative">
+                      <span className="text-xl font-bold">
+                        {coupon.type === 'percentage' ? `${coupon.value}%` : formatPrice(coupon.value)}
+                      </span>
+                      <span className="text-[10px] opacity-80">OFF</span>
+                      <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background rounded-full" />
+                      <div className="absolute -right-2 bottom-0 w-4 h-2 bg-background" />
+                      <div className="absolute -right-2 top-0 w-4 h-2 bg-background" />
                     </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded tracking-wider font-bold">
-                        {coupon.code}
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-[10px] border-orange-200 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
-                        onClick={() => handleCopy(coupon.code)}
-                      >
-                        {copiedCode === coupon.code ? (
-                          <><Check size={10} className="mr-0.5" /> Copied</>
-                        ) : (
-                          <><Copy size={10} className="mr-0.5" /> Copy</>
-                        )}
-                      </Button>
+                    {/* Right side - details */}
+                    <div className="flex-1 p-3 flex flex-col justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{coupon.description || coupon.code}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Min order: {formatPrice(coupon.minOrder)}
+                          {coupon.maxDiscount ? ` · Max ${formatPrice(coupon.maxDiscount)}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded tracking-wider font-bold">
+                          {coupon.code}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] border-orange-200 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                          onClick={() => handleCopy(coupon.code)}
+                        >
+                          {copiedCode === coupon.code ? (
+                            <><Check size={10} className="mr-0.5" /> Copied</>
+                          ) : (
+                            <><Copy size={10} className="mr-0.5" /> Copy</>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Used Coupons */}
@@ -1174,12 +1473,31 @@ function ReviewsTab() {
 
 // ==================== NOTIFICATIONS TAB ====================
 function NotificationsTab() {
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const [notifications, setNotifications] = useState<ApiNotification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('All')
+
+  const fetchNotifications = () => {
+    setLoading(true)
+    setError(null)
+    setReloadKey((k) => k + 1)
+  }
+
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    apiGet<{ notifications: ApiNotification[]; totalUnread?: number }>('/api/notifications?limit=50')
+      .then((data) => { if (mounted) { setNotifications(data.notifications || []); setError(null) } })
+      .catch((err) => { if (mounted) setError(err?.message || 'Failed to load notifications') })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
+  }, [reloadKey])
 
   const filteredNotifications = useMemo(() => {
     if (filter === 'All') return notifications
-    return notifications.filter(n => n.type === filter)
+    return notifications.filter(n => normalizeNotifType(n.type) === filter)
   }, [filter, notifications])
 
   const unreadCount = notifications.filter(n => !n.isRead).length
@@ -1233,46 +1551,58 @@ function NotificationsTab() {
       </div>
 
       {/* Notification List */}
-      <Card>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-[500px]">
-            <div className="divide-y">
-              {filteredNotifications.map((notif) => {
-                const IconComp = getNotifIcon(notif.type)
-                return (
-                  <motion.div
-                    key={notif.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className={`flex items-start gap-3 p-4 hover:bg-muted/50 transition-colors cursor-pointer ${
-                      !notif.isRead ? 'bg-orange-50/50 dark:bg-orange-950/10' : ''
-                    }`}
-                    onClick={() => markAsRead(notif.id)}
-                  >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                      notif.type === 'Orders' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                      notif.type === 'Promos' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
-                      'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                    }`}>
-                      <IconComp size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm ${!notif.isRead ? 'font-semibold' : 'font-medium'}`}>{notif.title}</p>
-                        {!notif.isRead && (
-                          <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                        )}
+      {loading ? (
+        <TabSkeleton rows={4} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={fetchNotifications} />
+      ) : filteredNotifications.length === 0 ? (
+        <div className="text-center py-12">
+          <Bell className="mx-auto mb-3 text-muted-foreground" size={48} />
+          <p className="text-muted-foreground">No notifications</p>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[500px]">
+              <div className="divide-y">
+                {filteredNotifications.map((notif) => {
+                  const IconComp = getNotifIcon(notif.type)
+                  const normType = normalizeNotifType(notif.type)
+                  return (
+                    <motion.div
+                      key={notif.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`flex items-start gap-3 p-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                        !notif.isRead ? 'bg-orange-50/50 dark:bg-orange-950/10' : ''
+                      }`}
+                      onClick={() => markAsRead(notif.id)}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                        normType === 'Orders' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                        normType === 'Promos' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
+                        'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      }`}>
+                        <IconComp size={16} />
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{notif.time}</p>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm ${!notif.isRead ? 'font-semibold' : 'font-medium'}`}>{notif.title}</p>
+                          {!notif.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{formatRelativeTime(notif.createdAt)}</p>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
     </motion.div>
   )
 }

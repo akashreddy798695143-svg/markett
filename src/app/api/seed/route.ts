@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword, createSession } from '@/lib/auth-utils'
+import { scryptSync, randomBytes } from 'crypto'
 import {
   categories,
   brands,
@@ -9,6 +9,35 @@ import {
   coupons,
   banners,
 } from '@/lib/mock-data'
+
+/** Hash a password using scryptSync (same scheme as register/login routes). */
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex')
+  const hash = scryptSync(password, salt, 64).toString('hex')
+  return `${salt}:${hash}`
+}
+
+/** GET /api/seed — auto-seed if the database has no products. */
+export async function GET() {
+  try {
+    const count = await db.product.count()
+    if (count > 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'Database already has products — no seeding needed',
+        stats: { products: count },
+      })
+    }
+    // Delegate to POST
+    return POST()
+  } catch (error) {
+    console.error('Seed GET API error:', error)
+    return NextResponse.json(
+      { error: 'Internal Server Error', details: String(error) },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST() {
   try {

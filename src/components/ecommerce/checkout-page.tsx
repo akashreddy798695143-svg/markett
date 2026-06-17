@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCartStore } from '@/store/cart-store'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useAuthStore } from '@/store/auth-store'
 import { useToast } from '@/hooks/use-toast'
 import { formatPrice } from '@/lib/mock-data'
+import { apiGet, apiPost } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,58 +36,71 @@ import {
   Plus,
   Smartphone,
   Banknote,
+  Loader2,
 } from 'lucide-react'
 
-// ── Mock Addresses ────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────
 
 interface Address {
   id: string
+  userId?: string
   name: string
   phone: string
-  line1: string
-  line2: string
+  addressLine1: string
+  addressLine2?: string | null
   city: string
   state: string
   pincode: string
-  type: 'Home' | 'Work'
+  country?: string
+  isDefault?: boolean
+  addressType: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-function getMockAddresses(userName: string, userPhone: string): Address[] {
-  return [
-    {
-      id: 'addr-1',
-      name: userName || 'User',
-      phone: userPhone || '+91 98765 43210',
-      line1: '42, Park Street, Sector 15',
-      line2: 'Near City Mall',
-      city: 'Gurugram',
-      state: 'Haryana',
-      pincode: '122001',
-      type: 'Home',
-    },
-    {
-      id: 'addr-2',
-      name: userName || 'User',
-      phone: userPhone || '+91 98765 43210',
-      line1: 'Tower B, 12th Floor, Cyber Hub',
-      line2: 'DLF Phase 3',
-      city: 'Gurugram',
-      state: 'Haryana',
-      pincode: '122002',
-      type: 'Work',
-    },
-    {
-      id: 'addr-3',
-      name: userName || 'User',
-      phone: userPhone || '+91 99887 76655',
-      line1: '15, MG Road, Indiranagar',
-      line2: '',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      pincode: '560038',
-      type: 'Home',
-    },
-  ]
+interface OrderItem {
+  id: string
+  productId: string
+  variantId?: string | null
+  quantity: number
+  price: number
+  salePrice: number | null
+  total: number
+  status: string
+  product: {
+    id: string
+    name: string
+    slug: string
+    images: string
+  }
+}
+
+interface Order {
+  id: string
+  orderNumber: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string
+  subtotal: number
+  discount: number
+  tax: number
+  shipping: number
+  total: number
+  couponCode: string | null
+  addressId: string
+  notes: string | null
+  createdAt: string
+  items: OrderItem[]
+}
+
+/** Parse a product's images JSON string into a string array. */
+function parseImages(raw: string | undefined | null): string[] {
+  try {
+    const arr = JSON.parse(raw || '[]')
+    return Array.isArray(arr) ? arr.filter(Boolean) : []
+  } catch {
+    return []
+  }
 }
 
 // ── Step type ─────────────────────────────────────────────────────────
@@ -116,7 +130,7 @@ export function CheckoutPage() {
   const total = getTotal()
 
   const [currentStep, setCurrentStep] = useState<Step>('address')
-  const [selectedAddressId, setSelectedAddressId] = useState('addr-1')
+  const [selectedAddressId, setSelectedAddressId] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('upi')
   const [upiId, setUpiId] = useState('')
   const [cardNumber, setCardNumber] = useState('')
@@ -124,20 +138,61 @@ export function CheckoutPage() {
   const [cardCvv, setCardCvv] = useState('')
   const [cardName, setCardName] = useState('')
   const [showAddressForm, setShowAddressForm] = useState(false)
-  const [orderId, setOrderId] = useState('')
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
+
+  // Addresses (DB-backed)
+  const [addresses, setAddresses] = useState<Address[]>([])
+  const [addressesLoading, setAddressesLoading] = useState(true)
+  const [addingAddress, setAddingAddress] = useState(false)
+  const [placingOrder, setPlacingOrder] = useState(false)
 
   // Address form
   const [newAddress, setNewAddress] = useState<Omit<Address, 'id'>>({
     name: '',
     phone: '',
-    line1: '',
-    line2: '',
+    addressLine1: '',
+    addressLine2: '',
     city: '',
     state: '',
     pincode: '',
-    type: 'Home',
+    country: 'India',
+    addressType: 'home',
+    isDefault: false,
   })
-  const [addresses, setAddresses] = useState<Address[]>(getMockAddresses(auth.user?.name || '', auth.user?.phone || ''))
+
+  // ── Fetch addresses from /api/addresses ────────────────────────────
+  const fetchAddresses = useCallback(async () => {
+    try {
+      setAddressesLoading(true)
+      const data = await apiGet<{ addresses: Address[] }>('/api/addresses')
+      const list = data.addresses || []
+      setAddresses(list)
+      // Auto-select default or first address (only if user hasn't picked one)
+      setSelectedAddressId((prev) =>
+        prev
+          ? prev
+          : list.find((a) => a.isDefault)?.id || list[0]?.id || ''
+      )
+      // Auto-open the form if the user has no addresses yet
+      if (list.length === 0) {
+        setShowAddressForm(true)
+      }
+    } catch (err) {
+      toast({
+        title: 'Could not load addresses',
+        description: err instanceof Error ? err.message : 'Please try again later.',
+        variant: 'destructive',
+      })
+    } finally {
+      setAddressesLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (auth.isAuthenticated) {
+      fetchAddresses()
+    }
+  }, [auth.isAuthenticated, fetchAddresses])
 
   // Redirect if cart is empty (unless on confirmation)
   useEffect(() => {
@@ -160,13 +215,50 @@ export function CheckoutPage() {
 
   const stepIndex = steps.findIndex((s) => s.key === currentStep)
 
-  const handleNext = () => {
-    if (currentStep === 'address') setCurrentStep('payment')
-    else if (currentStep === 'payment') setCurrentStep('review')
-    else if (currentStep === 'review') {
-      const id = 'SZ' + Date.now().toString(36).toUpperCase()
-      setOrderId(id)
-      setCurrentStep('confirmation')
+  const handleNext = async () => {
+    if (currentStep === 'address') {
+      setCurrentStep('payment')
+      return
+    }
+    if (currentStep === 'payment') {
+      setCurrentStep('review')
+      return
+    }
+    if (currentStep === 'review') {
+      // ── Place Order ──
+      if (!selectedAddressId) {
+        toast({
+          title: 'Select an address',
+          description: 'Please choose a delivery address before placing your order.',
+          variant: 'destructive',
+        })
+        return
+      }
+      try {
+        setPlacingOrder(true)
+        const data = await apiPost<{ order: Order }>('/api/orders', {
+          addressId: selectedAddressId,
+          paymentMethod,
+          couponCode: couponCode || undefined,
+          notes: undefined,
+        })
+        const order = data.order
+        setPlacedOrder(order)
+        clearCart()
+        setCurrentStep('confirmation')
+        toast({
+          title: 'Order placed!',
+          description: `Your order #${order.orderNumber} has been placed successfully.`,
+        })
+      } catch (err) {
+        toast({
+          title: 'Could not place order',
+          description: err instanceof Error ? err.message : 'Please try again.',
+          variant: 'destructive',
+        })
+      } finally {
+        setPlacingOrder(false)
+      }
     }
   }
 
@@ -175,21 +267,51 @@ export function CheckoutPage() {
     else if (currentStep === 'review') setCurrentStep('payment')
   }
 
-  const handleAddAddress = () => {
-    const addr: Address = { ...newAddress, id: 'addr-' + Date.now() }
-    setAddresses((prev) => [...prev, addr])
-    setSelectedAddressId(addr.id)
-    setShowAddressForm(false)
-    setNewAddress({
-      name: '',
-      phone: '',
-      line1: '',
-      line2: '',
-      city: '',
-      state: '',
-      pincode: '',
-      type: 'Home',
-    })
+  const handleAddAddress = async () => {
+    try {
+      setAddingAddress(true)
+      const data = await apiPost<{ address: Address }>('/api/addresses', {
+        name: newAddress.name,
+        phone: newAddress.phone,
+        addressLine1: newAddress.addressLine1,
+        addressLine2: newAddress.addressLine2 || undefined,
+        city: newAddress.city,
+        state: newAddress.state,
+        pincode: newAddress.pincode,
+        country: newAddress.country || 'India',
+        addressType: newAddress.addressType,
+        isDefault: newAddress.isDefault,
+      })
+      // Re-fetch to keep the local list in sync with the server
+      await fetchAddresses()
+      // Select the newly-created address
+      setSelectedAddressId(data.address.id)
+      setShowAddressForm(false)
+      setNewAddress({
+        name: '',
+        phone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        pincode: '',
+        country: 'India',
+        addressType: 'home',
+        isDefault: false,
+      })
+      toast({
+        title: 'Address added',
+        description: 'Your new address has been saved.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Could not save address',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setAddingAddress(false)
+    }
   }
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId)
@@ -270,6 +392,7 @@ export function CheckoutPage() {
               <StepWrapper key="address">
                 <AddressStep
                   addresses={addresses}
+                  addressesLoading={addressesLoading}
                   selectedId={selectedAddressId}
                   onSelect={setSelectedAddressId}
                   showForm={showAddressForm}
@@ -277,6 +400,7 @@ export function CheckoutPage() {
                   newAddress={newAddress}
                   onNewAddressChange={setNewAddress}
                   onAddAddress={handleAddAddress}
+                  addingAddress={addingAddress}
                 />
               </StepWrapper>
             )}
@@ -308,10 +432,10 @@ export function CheckoutPage() {
                 />
               </StepWrapper>
             )}
-            {currentStep === 'confirmation' && (
+            {currentStep === 'confirmation' && placedOrder && (
               <StepWrapper key="confirmation">
                 <ConfirmationStep
-                  orderId={orderId}
+                  order={placedOrder}
                   address={selectedAddress}
                   onTrackOrder={() => navigate('user-dashboard', { tab: 'orders' })}
                   onContinueShopping={() => {
@@ -337,13 +461,17 @@ export function CheckoutPage() {
               </Button>
               <Button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || placingOrder}
                 className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-500/20 min-w-[140px]"
               >
                 {currentStep === 'review' ? (
                   <>
-                    <Lock className="w-4 h-4 mr-1" />
-                    Place Order
+                    {placingOrder ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Lock className="w-4 h-4 mr-1" />
+                    )}
+                    {placingOrder ? 'Placing Order...' : 'Place Order'}
                   </>
                 ) : (
                   <>
@@ -394,6 +522,7 @@ function StepWrapper({ children }: { children: React.ReactNode }) {
 
 function AddressStep({
   addresses,
+  addressesLoading,
   selectedId,
   onSelect,
   showForm,
@@ -401,8 +530,10 @@ function AddressStep({
   newAddress,
   onNewAddressChange,
   onAddAddress,
+  addingAddress,
 }: {
   addresses: Address[]
+  addressesLoading: boolean
   selectedId: string
   onSelect: (id: string) => void
   showForm: boolean
@@ -410,6 +541,7 @@ function AddressStep({
   newAddress: Omit<Address, 'id'>
   onNewAddressChange: (addr: Omit<Address, 'id'>) => void
   onAddAddress: () => void
+  addingAddress: boolean
 }) {
   return (
     <div className="space-y-4">
@@ -421,49 +553,79 @@ function AddressStep({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <RadioGroup value={selectedId} onValueChange={onSelect} className="space-y-3">
-            {addresses.map((addr) => (
-              <label
-                key={addr.id}
-                htmlFor={addr.id}
-                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  selectedId === addr.id
-                    ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20'
-                    : 'border-border/50 hover:border-border'
-                }`}
-              >
-                <RadioGroupItem value={addr.id} id={addr.id} className="mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-sm">{addr.name}</span>
-                    <Badge
-                      variant="secondary"
-                      className="text-[10px] px-1.5 py-0"
-                    >
-                      {addr.type}
-                    </Badge>
+          {addressesLoading ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Loading your saved addresses...
+            </div>
+          ) : addresses.length === 0 ? (
+            <div className="text-center py-8">
+              <MapPin className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mb-1">
+                No saved addresses yet
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Add a delivery address to continue.
+              </p>
+            </div>
+          ) : (
+            <RadioGroup value={selectedId} onValueChange={onSelect} className="space-y-3">
+              {addresses.map((addr) => (
+                <label
+                  key={addr.id}
+                  htmlFor={addr.id}
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    selectedId === addr.id
+                      ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20'
+                      : 'border-border/50 hover:border-border'
+                  }`}
+                >
+                  <RadioGroupItem value={addr.id} id={addr.id} className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-sm">{addr.name}</span>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 py-0"
+                      >
+                        {addr.addressType
+                          ? addr.addressType.charAt(0).toUpperCase() +
+                            addr.addressType.slice(1)
+                          : 'Home'}
+                      </Badge>
+                      {addr.isDefault && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 text-green-600 border-green-500/40"
+                        >
+                          Default
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {addr.addressLine1}
+                      {addr.addressLine2 ? `, ${addr.addressLine2}` : ''},{' '}
+                      {addr.city}, {addr.state} - {addr.pincode}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {addr.phone}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {addr.line1}
-                    {addr.line2 ? `, ${addr.line2}` : ''}, {addr.city},{' '}
-                    {addr.state} - {addr.pincode}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {addr.phone}
-                  </p>
-                </div>
-              </label>
-            ))}
-          </RadioGroup>
+                </label>
+              ))}
+            </RadioGroup>
+          )}
 
-          <Button
-            variant="outline"
-            className="w-full mt-4 rounded-xl border-dashed"
-            onClick={onToggleForm}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add New Address
-          </Button>
+          {!addressesLoading && addresses.length > 0 && (
+            <Button
+              variant="outline"
+              className="w-full mt-4 rounded-xl border-dashed"
+              onClick={onToggleForm}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add New Address
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -511,9 +673,9 @@ function AddressStep({
                   <Label htmlFor="new-line1">Address Line 1</Label>
                   <Input
                     id="new-line1"
-                    value={newAddress.line1}
+                    value={newAddress.addressLine1}
                     onChange={(e) =>
-                      onNewAddressChange({ ...newAddress, line1: e.target.value })
+                      onNewAddressChange({ ...newAddress, addressLine1: e.target.value })
                     }
                     placeholder="House/Flat No., Building Name"
                     className="rounded-lg"
@@ -523,9 +685,9 @@ function AddressStep({
                   <Label htmlFor="new-line2">Address Line 2</Label>
                   <Input
                     id="new-line2"
-                    value={newAddress.line2}
+                    value={newAddress.addressLine2 || ''}
                     onChange={(e) =>
-                      onNewAddressChange({ ...newAddress, line2: e.target.value })
+                      onNewAddressChange({ ...newAddress, addressLine2: e.target.value })
                     }
                     placeholder="Street, Locality, Landmark"
                     className="rounded-lg"
@@ -571,11 +733,11 @@ function AddressStep({
                   <div className="space-y-2">
                     <Label htmlFor="new-type">Type</Label>
                     <Select
-                      value={newAddress.type}
+                      value={newAddress.addressType}
                       onValueChange={(v) =>
                         onNewAddressChange({
                           ...newAddress,
-                          type: v as 'Home' | 'Work',
+                          addressType: v,
                         })
                       }
                     >
@@ -583,25 +745,38 @@ function AddressStep({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Home">Home</SelectItem>
-                        <SelectItem value="Work">Work</SelectItem>
+                        <SelectItem value="home">Home</SelectItem>
+                        <SelectItem value="work">Work</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <Checkbox
+                    checked={!!newAddress.isDefault}
+                    onCheckedChange={(v) =>
+                      onNewAddressChange({ ...newAddress, isDefault: v === true })
+                    }
+                  />
+                  Set as default address
+                </label>
                 <Button
                   className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
-                  onClick={handleAddAddress}
+                  onClick={onAddAddress}
                   disabled={
+                    addingAddress ||
                     !newAddress.name ||
                     !newAddress.phone ||
-                    !newAddress.line1 ||
+                    !newAddress.addressLine1 ||
                     !newAddress.city ||
                     !newAddress.state ||
                     !newAddress.pincode
                   }
                 >
-                  Save Address
+                  {addingAddress ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : null}
+                  {addingAddress ? 'Saving...' : 'Save Address'}
                 </Button>
               </CardContent>
             </Card>
@@ -610,10 +785,6 @@ function AddressStep({
       </AnimatePresence>
     </div>
   )
-
-  function handleAddAddress() {
-    onAddAddress()
-  }
 }
 
 // ── Payment Step ───────────────────────────────────────────────────────
@@ -828,9 +999,9 @@ function ReviewStep({
             <div className="text-sm">
               <p className="font-semibold">{address.name}</p>
               <p className="text-muted-foreground">
-                {address.line1}
-                {address.line2 ? `, ${address.line2}` : ''}, {address.city},{' '}
-                {address.state} - {address.pincode}
+                {address.addressLine1}
+                {address.addressLine2 ? `, ${address.addressLine2}` : ''},{' '}
+                {address.city}, {address.state} - {address.pincode}
               </p>
               <p className="text-muted-foreground">{address.phone}</p>
             </div>
@@ -893,12 +1064,12 @@ function ReviewStep({
 // ── Confirmation Step ──────────────────────────────────────────────────
 
 function ConfirmationStep({
-  orderId,
+  order,
   address,
   onTrackOrder,
   onContinueShopping,
 }: {
-  orderId: string
+  order: Order
   address?: Address
   onTrackOrder: () => void
   onContinueShopping: () => void
@@ -976,7 +1147,7 @@ function ConfirmationStep({
           <CardContent className="p-5 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Order ID</span>
-              <Badge className="font-mono">{orderId}</Badge>
+              <Badge className="font-mono">{order.orderNumber}</Badge>
             </div>
             <Separator />
             <div className="flex justify-between items-center">
@@ -994,12 +1165,91 @@ function ConfirmationStep({
                   </span>
                   <p className="text-sm font-medium">{address.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {address.line1}, {address.city}, {address.state} -{' '}
+                    {address.addressLine1}, {address.city}, {address.state} -{' '}
                     {address.pincode}
                   </p>
                 </div>
               </>
             )}
+
+            {/* Order Items */}
+            {order.items.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <span className="text-sm text-muted-foreground block mb-2">
+                    Items ({order.items.length})
+                  </span>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {order.items.map((item) => {
+                      const imgs = parseImages(item.product.images)
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <div className="w-8 h-8 rounded bg-muted flex-shrink-0 overflow-hidden">
+                            {imgs[0] && (
+                              <img
+                                src={imgs[0]}
+                                alt={item.product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <span className="flex-1 line-clamp-1 text-xs">
+                            {item.product.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            x{item.quantity}
+                          </span>
+                          <span className="text-xs font-medium flex-shrink-0">
+                            {formatPrice(item.total)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Order Totals */}
+            <Separator />
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-medium">{formatPrice(order.subtotal)}</span>
+              </div>
+              {order.discount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Discount</span>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    -{formatPrice(order.discount)}
+                  </span>
+                </div>
+              )}
+              {order.tax > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span className="font-medium">{formatPrice(order.tax)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="font-medium">
+                  {order.shipping === 0 ? (
+                    <span className="text-green-600 dark:text-green-400">FREE</span>
+                  ) : (
+                    formatPrice(order.shipping)
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-1">
+                <span>Total</span>
+                <span>{formatPrice(order.total)}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

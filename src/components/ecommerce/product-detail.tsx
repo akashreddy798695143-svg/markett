@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Star,
@@ -19,20 +19,15 @@ import {
   Copy,
 } from 'lucide-react'
 import {
-  getProductById,
-  getProductsByCategory,
-  products,
-  reviews,
   formatPrice,
   type Product,
-  categories,
-  brands,
-  sellers,
 } from '@/lib/mock-data'
+import { apiGet } from '@/lib/api-client'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useCartStore } from '@/store/cart-store'
 import { useWishlistStore } from '@/store/wishlist-store'
 import { useRequireAuth } from '@/hooks/use-require-auth'
+import { useToast } from '@/hooks/use-toast'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -59,6 +54,181 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from '@/components/ui/carousel'
+import { Skeleton } from '@/components/ui/skeleton'
+
+// ==================== API PRODUCT TYPES ====================
+interface ApiBrand {
+  id: string
+  name: string
+  slug: string
+  logo?: string | null
+}
+interface ApiCategory {
+  id: string
+  name: string
+  slug: string
+  parentId?: string | null
+}
+interface ApiSeller {
+  id: string
+  storeName: string
+  storeSlug: string
+  storeLogo?: string | null
+  rating: number
+  totalProducts: number
+  totalSales: number
+  isVerified: boolean
+}
+interface ApiReview {
+  id: string
+  productId: string
+  userId: string
+  rating: number
+  title?: string | null
+  comment?: string | null
+  isVerified: boolean
+  helpful: number
+  createdAt: string
+  user?: { id: string; name: string; avatar?: string | null } | null
+}
+interface ApiProduct {
+  id: string
+  name: string
+  slug: string
+  description: string
+  shortDesc?: string | null
+  categoryId: string
+  brandId?: string | null
+  sellerId: string
+  basePrice: number
+  salePrice?: number | null
+  images: string
+  colors?: string | null
+  sizes?: string | null
+  specifications?: string | null
+  highlights?: string | null
+  tags?: string | null
+  stock: number
+  sku?: string | null
+  weight?: number | null
+  isFeatured: boolean
+  isNewArrival: boolean
+  isTrending: boolean
+  isBestSeller: boolean
+  isActive: boolean
+  avgRating: number
+  totalReviews: number
+  totalSold: number
+  discount: number
+  deliveryDays: number
+  isFreeDelivery: boolean
+  returnPolicy?: string | null
+  warranty?: string | null
+  brand?: ApiBrand | null
+  category?: ApiCategory | null
+  seller?: ApiSeller | null
+  reviews?: ApiReview[]
+}
+
+interface ParsedReview {
+  id: string
+  productId: string
+  userId: string
+  userName: string
+  rating: number
+  title: string
+  comment: string
+  isVerified: boolean
+  helpful: number
+  createdAt: string
+}
+
+interface ParsedProduct extends Product {
+  brand?: ApiBrand | null
+  category?: ApiCategory | null
+  seller?: ApiSeller | null
+  parsedReviews?: ParsedReview[]
+}
+
+function parseJsonArray(value: string | null | undefined): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch {
+    return []
+  }
+}
+
+function parseJsonObject(value: string | null | undefined): Record<string, string> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, string>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function mapApiReview(r: ApiReview): ParsedReview {
+  const date = new Date(r.createdAt)
+  const isValidDate = !isNaN(date.getTime())
+  return {
+    id: r.id,
+    productId: r.productId,
+    userId: r.userId,
+    userName: r.user?.name || 'Anonymous',
+    rating: r.rating,
+    title: r.title || '',
+    comment: r.comment || '',
+    isVerified: r.isVerified,
+    helpful: r.helpful,
+    createdAt: isValidDate ? date.toLocaleDateString() : r.createdAt,
+  }
+}
+
+function parseApiProduct(p: ApiProduct): ParsedProduct {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description,
+    shortDesc: p.shortDesc || '',
+    categoryId: p.categoryId,
+    brandId: p.brandId || '',
+    sellerId: p.sellerId,
+    basePrice: p.basePrice,
+    salePrice: p.salePrice ?? p.basePrice,
+    images: parseJsonArray(p.images),
+    colors: parseJsonArray(p.colors),
+    sizes: parseJsonArray(p.sizes),
+    specifications: parseJsonObject(p.specifications),
+    highlights: parseJsonArray(p.highlights),
+    tags: parseJsonArray(p.tags),
+    stock: p.stock,
+    sku: p.sku || '',
+    weight: p.weight ?? 0,
+    isFeatured: p.isFeatured,
+    isNewArrival: p.isNewArrival,
+    isTrending: p.isTrending,
+    isBestSeller: p.isBestSeller,
+    isActive: p.isActive,
+    avgRating: p.avgRating,
+    totalReviews: p.totalReviews,
+    totalSold: p.totalSold,
+    discount: p.discount,
+    deliveryDays: p.deliveryDays,
+    isFreeDelivery: p.isFreeDelivery,
+    returnPolicy: p.returnPolicy || '7 days',
+    warranty: p.warranty || 'N/A',
+    brand: p.brand,
+    category: p.category,
+    seller: p.seller,
+    parsedReviews: (p.reviews || []).map(mapApiReview),
+  }
+}
 
 // ==================== COLOR HELPER ====================
 const colorHexMap: Record<string, string> = {
@@ -184,7 +354,7 @@ function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md
 }
 
 // ==================== MINI PRODUCT CARD ====================
-function MiniProductCard({ product }: { product: Product }) {
+function MiniProductCard({ product }: { product: ParsedProduct }) {
   const navigate = useNavigationStore((s) => s.navigate)
   const addItem = useCartStore((s) => s.addItem)
 
@@ -195,7 +365,7 @@ function MiniProductCard({ product }: { product: Product }) {
     >
       <div className="relative aspect-square overflow-hidden rounded-t-lg bg-gray-100">
         <img
-          src={product.images[0]}
+          src={product.images[0] || ''}
           alt={product.name}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
           loading="lazy"
@@ -208,7 +378,7 @@ function MiniProductCard({ product }: { product: Product }) {
       </div>
       <CardContent className="p-2.5">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">
-          {brands.find((b) => b.id === product.brandId)?.name}
+          {product.brand?.name}
         </p>
         <h3 className="font-medium text-xs line-clamp-2 min-h-[2rem] mt-0.5">{product.name}</h3>
         <div className="flex items-center gap-1 mt-1">
@@ -233,7 +403,7 @@ function MiniProductCard({ product }: { product: Product }) {
 }
 
 // ==================== REVIEW CARD ====================
-function ReviewCard({ review }: { review: (typeof reviews)[0] }) {
+function ReviewCard({ review }: { review: ParsedReview }) {
   const [helpfulCount, setHelpfulCount] = useState(review.helpful)
   const [voted, setVoted] = useState(false)
 
@@ -296,17 +466,84 @@ function ThumbUp({ className }: { className?: string }) {
   )
 }
 
+// ==================== LOADING SKELETON ====================
+function ProductDetailSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          <div className="lg:w-[45%] flex-shrink-0">
+            <Skeleton className="aspect-square w-full rounded-xl" />
+            <div className="flex gap-2 mt-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg" />
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0 space-y-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-32 w-full rounded-xl" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ==================== MAIN COMPONENT ====================
 export default function ProductDetail() {
   const { selectedProductId, navigate } = useNavigationStore()
   const addItem = useCartStore((s) => s.addItem)
   const { addItem: addWishlist, removeItem: removeWishlist, isInWishlist } = useWishlistStore()
   const requireAuth = useRequireAuth()
+  const { toast } = useToast()
 
-  const product = useMemo(
-    () => (selectedProductId ? getProductById(selectedProductId) : undefined),
-    [selectedProductId]
-  )
+  // Server-backed product state. We fetch from /api/products/[id] whenever the
+  // selected id changes (or when the user clicks "Try Again").
+  const [product, setProduct] = useState<ParsedProduct | null>(null)
+  const [relatedProducts, setRelatedProducts] = useState<ParsedProduct[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryNonce, setRetryNonce] = useState(0)
+
+  useEffect(() => {
+    if (!selectedProductId) return
+    let cancelled = false
+    // Mark the fetch as in-progress / clear any prior error before kicking off
+    // the async request. The synchronous setState calls here are intentional —
+    // they reset the UI to a loading state in response to a prop change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    setError(null)
+    apiGet<{ product: ApiProduct; relatedProducts: ApiProduct[] }>(
+      `/api/products/${encodeURIComponent(selectedProductId)}`
+    )
+      .then((data) => {
+        if (cancelled) return
+        if (!data.product) {
+          setProduct(null)
+          setError('Product not found')
+        } else {
+          setProduct(parseApiProduct(data.product))
+          setRelatedProducts((data.relatedProducts || []).map(parseApiProduct))
+        }
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : 'Failed to load product')
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProductId, retryNonce])
 
   const [selectedImage, setSelectedImage] = useState(0)
   const [selectedColor, setSelectedColor] = useState(0)
@@ -319,34 +556,27 @@ export default function ProductDetail() {
   const [pincodeChecked, setPincodeChecked] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  // Reset selection state whenever the active product changes. The synchronous
+  // setState calls here are the canonical "reset derived UI when key changes"
+  // pattern — they are intentional and not derived from another state value.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedImage(0)
+    setSelectedColor(0)
+    setSelectedSize(0)
+    setQuantity(1)
+  }, [product?.id])
+
   const wishlisted = product ? isInWishlist(product.id) : false
-
-  const similarProducts = useMemo(() => {
-    if (!product) return []
-    return getProductsByCategory(product.categoryId).filter((p) => p.id !== product.id).slice(0, 8)
-  }, [product])
-
-  const productReviews = useMemo(() => {
-    if (!product) return []
-    return reviews.filter((r) => r.productId === product.id)
-  }, [product])
-
-  const brand = useMemo(
-    () => (product ? brands.find((b) => b.id === product.brandId) : undefined),
-    [product]
-  )
-  const category = useMemo(
-    () => (product ? categories.find((c) => c.id === product.categoryId) : undefined),
-    [product]
-  )
-  const parentCategory = useMemo(
-    () => (category?.parentId ? categories.find((c) => c.id === category.parentId) : undefined),
-    [category]
-  )
-  const seller = useMemo(
-    () => (product ? sellers.find((s) => s.id === product.sellerId) : undefined),
-    [product]
-  )
+  const similarProducts = relatedProducts.slice(0, 8)
+  const productReviews = product?.parsedReviews || []
+  const brand = product?.brand
+  const category = product?.category
+  // The /api/products/[id] endpoint does not return the parent category, so the
+  // breadcrumb simply omits that segment (kept as undefined intentionally).
+  const parentCategory: ApiCategory | undefined =
+    undefined as ApiCategory | undefined
+  const seller = product?.seller
 
   // Estimated delivery date
   const estimatedDelivery = useMemo(() => {
@@ -367,45 +597,61 @@ export default function ProductDetail() {
     setZoomPosition({ x, y })
   }
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return
     if (!requireAuth('add items to your cart')) return
-    addItem({
-      id: `${product.id}-${product.colors[selectedColor]}-${product.sizes[selectedSize]}-${Date.now()}`,
-      productId: product.id,
-      name: product.name,
-      image: product.images[0],
-      price: product.basePrice,
-      salePrice: product.salePrice,
-      quantity,
-      color: product.colors[selectedColor],
-      size: product.sizes[selectedSize],
-      stock: product.stock,
-      saveForLater: false,
-    })
+    try {
+      await addItem({
+        id: `${product.id}-${product.colors[selectedColor]}-${product.sizes[selectedSize]}-${Date.now()}`,
+        productId: product.id,
+        name: product.name,
+        image: product.images[0] || '',
+        price: product.basePrice,
+        salePrice: product.salePrice,
+        quantity,
+        color: product.colors[selectedColor],
+        size: product.sizes[selectedSize],
+        stock: product.stock,
+        saveForLater: false,
+      })
+    } catch (err) {
+      toast({
+        title: 'Failed to add to cart',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    }
   }
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!requireAuth('place an order')) return
-    handleAddToCart()
+    await handleAddToCart()
     navigate('cart')
   }
 
-  const handleWishlist = () => {
+  const handleWishlist = async () => {
     if (!product) return
     if (!requireAuth('save items to your wishlist')) return
-    if (wishlisted) {
-      removeWishlist(product.id)
-    } else {
-      addWishlist({
-        id: product.id,
-        productId: product.id,
-        name: product.name,
-        image: product.images[0],
-        price: product.basePrice,
-        salePrice: product.salePrice,
-        rating: product.avgRating,
-        inStock: product.stock > 0,
+    try {
+      if (wishlisted) {
+        await removeWishlist(product.id)
+      } else {
+        await addWishlist({
+          id: product.id,
+          productId: product.id,
+          name: product.name,
+          image: product.images[0] || '',
+          price: product.basePrice,
+          salePrice: product.salePrice,
+          rating: product.avgRating,
+          inStock: product.stock > 0,
+        })
+      }
+    } catch (err) {
+      toast({
+        title: 'Wishlist update failed',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
       })
     }
   }
@@ -429,7 +675,7 @@ export default function ProductDetail() {
     }
   }
 
-  if (!product) {
+  if (!selectedProductId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -439,6 +685,34 @@ export default function ProductDetail() {
             The product you&apos;re looking for doesn&apos;t exist
           </p>
           <Button onClick={() => navigate('products')}>Browse Products</Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <ProductDetailSkeleton />
+  }
+
+  if (error || !product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">😕</div>
+          <h2 className="text-xl font-semibold mb-2">
+            {error ? 'Failed to load product' : 'Product not found'}
+          </h2>
+          <p className="text-muted-foreground mb-4">
+            {error || "The product you're looking for doesn't exist"}
+          </p>
+          <div className="flex justify-center gap-2">
+            {error && (
+              <Button variant="outline" onClick={() => setRetryNonce((n) => n + 1)}>
+                Try Again
+              </Button>
+            )}
+            <Button onClick={() => navigate('products')}>Browse Products</Button>
+          </div>
         </div>
       </div>
     )
@@ -871,7 +1145,7 @@ export default function ProductDetail() {
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
                       <img
-                        src={seller.storeLogo}
+                        src={seller.storeLogo || ''}
                         alt={seller.storeName}
                         className="w-full h-full object-cover"
                       />
@@ -1142,8 +1416,8 @@ export default function ProductDetail() {
             <h2 className="text-lg font-semibold">You May Also Like</h2>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
-            {products
-              .filter((p) => p.id !== product.id && p.isFeatured)
+            {relatedProducts
+              .filter((p) => p.id !== product.id)
               .slice(0, 8)
               .map((p) => (
                 <MiniProductCard key={p.id} product={p} />

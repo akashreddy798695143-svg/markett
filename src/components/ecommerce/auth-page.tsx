@@ -50,6 +50,7 @@ interface UserData {
   role?: string
   walletBalance?: number
   rewardPoints?: number
+  token?: string
 }
 
 // ── Main Component ────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export function AuthPage() {
       role: (userData.role as 'customer' | 'seller' | 'admin') || 'customer',
       walletBalance: userData.walletBalance || 0,
       rewardPoints: userData.rewardPoints || 0,
-    })
+    }, userData.token)
     navigate('home')
   }
 
@@ -238,7 +239,7 @@ function GoogleLoginDialog({
       setIsLoading(false)
 
       if (res.ok && data.user) {
-        onSuccess(data.user)
+        onSuccess({ ...data.user, token: data.token })
         onOpenChange(false)
         setEmail('')
         setName('')
@@ -365,7 +366,7 @@ function LoginForm({
         return
       }
       setIsLoading(false)
-      onLogin(data.user)
+      onLogin({ ...data.user, token: data.token })
     } catch {
       setError('Network error. Please try again.')
       setIsLoading(false)
@@ -587,7 +588,7 @@ function RegisterForm({
         return
       }
       // Pass user data from the API response so the name is the one they entered
-      onRegister(data.user)
+      onRegister({ ...data.user, token: data.token })
     } catch {
       setError('Network error. Please try again.')
       setIsLoading(false)
@@ -897,7 +898,7 @@ function OtpForm({
         title: 'Welcome to ShopZone!',
         description: 'Logged in successfully via mobile OTP.',
       })
-      onVerify(data.user)
+      onVerify({ ...data.user, token: data.token })
     } catch {
       setError('Network error. Please try again.')
       toast({

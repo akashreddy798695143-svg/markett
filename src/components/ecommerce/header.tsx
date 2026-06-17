@@ -50,6 +50,7 @@ import { useNavigationStore } from '@/store/navigation-store'
 import { useCartStore } from '@/store/cart-store'
 import { useWishlistStore } from '@/store/wishlist-store'
 import { useAuthStore } from '@/store/auth-store'
+import { useStoreSync } from '@/hooks/use-store-sync'
 import { getTopLevelCategories, products } from '@/lib/mock-data'
 import { categories as allCategories } from '@/lib/mock-data'
 import type { Category } from '@/lib/mock-data'
@@ -65,12 +66,17 @@ function getCategoryProducts(categoryId: string, limit = 4) {
 }
 
 export function Header() {
+  // Auto-sync cart & wishlist from server on auth state changes (login/logout).
+  useStoreSync()
+
   const { theme, setTheme } = useTheme()
   const navigate = useNavigationStore((s) => s.navigate)
   const setSearchQuery = useNavigationStore((s) => s.setSearchQuery)
   const searchQuery = useNavigationStore((s) => s.searchQuery)
   const currentView = useNavigationStore((s) => s.currentView)
-  const cartItemCount = useCartStore((s) => s.getItemCount())
+  const cartItemCount = useCartStore(
+    (s) => s.items.filter((i) => !i.saveForLater).reduce((sum, i) => sum + i.quantity, 0)
+  )
   const wishlistCount = useWishlistStore((s) => s.items.length)
   const { user, isAuthenticated, logout } = useAuthStore()
   const setAuthMode = useNavigationStore((s) => s.setAuthMode)

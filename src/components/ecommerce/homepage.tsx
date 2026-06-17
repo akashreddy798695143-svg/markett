@@ -15,7 +15,6 @@ import {
   TrendingUp,
   Sparkles,
   Crown,
-  Smartphone,
   QrCode,
   Apple,
   Play,
@@ -23,50 +22,148 @@ import {
   ArrowRight,
   Flame,
   BadgeCheck,
-  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselPrevious,
-  CarouselNext,
-} from '@/components/ui/carousel'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   banners,
-  getTopLevelCategories,
-  getFeaturedProducts,
-  getTrendingProducts,
-  getNewArrivals,
-  getBestSellers,
-  getFlashSaleProducts,
   formatPrice,
   reviews,
-  brands,
-  products,
 } from '@/lib/mock-data'
-import type { Product, Category, Review, Brand } from '@/lib/mock-data'
+import type { Review } from '@/lib/mock-data'
+import { apiGet } from '@/lib/api-client'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useCartStore } from '@/store/cart-store'
 import { useWishlistStore } from '@/store/wishlist-store'
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface Category {
+  id: string
+  name: string
+  slug: string
+  description?: string | null
+  image?: string | null
+  icon?: string | null
+  parentId: string | null
+  isActive: boolean
+  sortOrder?: number
+  productCount?: number
+  children?: Category[]
+}
+
+interface Brand {
+  id: string
+  name: string
+  slug: string
+  logo?: string | null
+  description?: string | null
+  isActive: boolean
+  productCount?: number
+}
+
+interface ApiProduct {
+  id: string
+  name: string
+  slug: string
+  description: string
+  shortDesc: string | null
+  categoryId: string
+  brandId: string | null
+  basePrice: number
+  salePrice: number | null
+  images: string
+  colors: string | null
+  sizes: string | null
+  highlights: string | null
+  stock: number
+  isFeatured: boolean
+  isNewArrival: boolean
+  isTrending: boolean
+  isBestSeller: boolean
+  isActive: boolean
+  avgRating: number
+  totalReviews: number
+  totalSold: number
+  discount: number
+  deliveryDays: number
+  isFreeDelivery: boolean
+  category: { id: string; name: string; slug: string }
+  brand: { id: string; name: string; slug: string; logo: string | null } | null
+}
+
+interface Product {
+  id: string
+  name: string
+  slug: string
+  description: string
+  shortDesc: string
+  categoryId: string
+  brandId: string
+  basePrice: number
+  salePrice: number
+  images: string[]
+  colors: string[]
+  sizes: string[]
+  stock: number
+  isFeatured: boolean
+  isNewArrival: boolean
+  isTrending: boolean
+  isBestSeller: boolean
+  isActive: boolean
+  avgRating: number
+  totalReviews: number
+  totalSold: number
+  discount: number
+  deliveryDays: number
+  isFreeDelivery: boolean
+  brand: { id: string; name: string; slug: string; logo: string | null } | null
+}
+
+function parseJsonArray<T = string>(raw: string | null | undefined): T[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeProduct(p: ApiProduct): Product {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description || '',
+    shortDesc: p.shortDesc || '',
+    categoryId: p.categoryId,
+    brandId: p.brandId || '',
+    basePrice: p.basePrice,
+    salePrice: p.salePrice ?? p.basePrice,
+    images: parseJsonArray<string>(p.images),
+    colors: parseJsonArray<string>(p.colors),
+    sizes: parseJsonArray<string>(p.sizes),
+    stock: p.stock,
+    isFeatured: p.isFeatured,
+    isNewArrival: p.isNewArrival,
+    isTrending: p.isTrending,
+    isBestSeller: p.isBestSeller,
+    isActive: p.isActive,
+    avgRating: p.avgRating,
+    totalReviews: p.totalReviews,
+    totalSold: p.totalSold,
+    discount: p.discount,
+    deliveryDays: p.deliveryDays,
+    isFreeDelivery: p.isFreeDelivery,
+    brand: p.brand,
+  }
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 const FLASH_SALE_END = new Date(Date.now() + 6 * 60 * 60 * 1000)
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function getBrandName(brandId: string): string {
-  return brands.find(b => b.id === brandId)?.name ?? ''
-}
-
-function getReviewProductImage(productId: string): string {
-  const product = products.find(p => p.id === productId)
-  return product?.images[0] ?? ''
-}
 
 // ─── Star Rating ─────────────────────────────────────────────────────────────
 function StarRating({ rating, count, size = 14 }: { rating: number; count?: number; size?: number }) {
@@ -121,7 +218,7 @@ function ProductCard({
         id: `${product.id}-${Date.now()}`,
         productId: product.id,
         name: product.name,
-        image: product.images[0],
+        image: product.images[0] || '',
         price: product.basePrice,
         salePrice: product.salePrice,
         quantity: 1,
@@ -142,7 +239,7 @@ function ProductCard({
           id: product.id,
           productId: product.id,
           name: product.name,
-          image: product.images[0],
+          image: product.images[0] || '',
           price: product.basePrice,
           salePrice: product.salePrice,
           rating: product.avgRating,
@@ -236,7 +333,7 @@ function ProductCard({
       <div className="flex flex-col gap-1.5 p-3 flex-1">
         {/* Brand */}
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-          {getBrandName(product.brandId)}
+          {product.brand?.name ?? ''}
         </span>
 
         {/* Name */}
@@ -355,18 +452,116 @@ function HorizontalScroll({ children, className = '' }: { children: React.ReactN
   )
 }
 
+// ─── Skeleton helpers ────────────────────────────────────────────────────────
+function CategorySkeleton() {
+  return (
+    <div className="flex flex-col items-center gap-2.5 min-w-[90px] sm:min-w-[100px] p-3">
+      <Skeleton className="w-16 h-16 sm:w-20 sm:h-20 rounded-full" />
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-2 w-12" />
+    </div>
+  )
+}
+
+function ProductCardSkeleton() {
+  return (
+    <Card className="overflow-hidden h-full flex flex-col">
+      <Skeleton className="aspect-square w-full" />
+      <div className="flex flex-col gap-2 p-3 flex-1">
+        <Skeleton className="h-2 w-16" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-5 w-20" />
+        <Skeleton className="h-8 w-full mt-auto" />
+      </div>
+    </Card>
+  )
+}
+
+function FlashSaleCardSkeleton() {
+  return (
+    <div className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
+      <Card className="overflow-hidden">
+        <Skeleton className="aspect-square w-full" />
+        <div className="p-2.5 space-y-2">
+          <Skeleton className="h-2 w-14" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-7 w-full" />
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function BrandSkeleton() {
+  return (
+    <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+      <Skeleton className="w-14 h-14 sm:w-16 sm:h-16 rounded-full" />
+      <Skeleton className="h-3 w-16" />
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN HOMEPAGE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Homepage() {
   const navigate = useNavigationStore(s => s.navigate)
-  const topLevelCategories = useMemo(() => getTopLevelCategories(), [])
-  const featuredProducts = useMemo(() => getFeaturedProducts(), [])
-  const trendingProducts = useMemo(() => getTrendingProducts(), [])
-  const newArrivals = useMemo(() => getNewArrivals(), [])
-  const bestSellers = useMemo(() => getBestSellers(), [])
-  const flashSaleProducts = useMemo(() => getFlashSaleProducts(), [])
-  const topBrands = useMemo(() => brands.slice(0, 12), [])
+
+  // ─── Data state ─────────────────────────────────────────────────────────
+  const [topLevelCategories, setTopLevelCategories] = useState<Category[]>([])
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+  const [trendingProducts, setTrendingProducts] = useState<Product[]>([])
+  const [newArrivals, setNewArrivals] = useState<Product[]>([])
+  const [bestSellers, setBestSellers] = useState<Product[]>([])
+  const [flashSaleProducts, setFlashSaleProducts] = useState<Product[]>([])
+  const [topBrands, setTopBrands] = useState<Brand[]>([])
+
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch all homepage data on mount
+  useEffect(() => {
+    let cancelled = false
+    async function loadData() {
+      setIsLoading(true)
+      try {
+        const [
+          catRes,
+          featRes,
+          trendRes,
+          newArrRes,
+          bestRes,
+          flashRes,
+          brandRes,
+        ] = await Promise.all([
+          apiGet<{ categories?: Category[]; allCategories?: Category[] }>('/api/categories'),
+          apiGet<{ products: ApiProduct[] }>('/api/products?featured=true&limit=8'),
+          apiGet<{ products: ApiProduct[] }>('/api/products?trending=true&limit=8'),
+          apiGet<{ products: ApiProduct[] }>('/api/products?newArrival=true&limit=8'),
+          apiGet<{ products: ApiProduct[] }>('/api/products?bestSeller=true&limit=8'),
+          apiGet<{ products: ApiProduct[] }>('/api/products?discount=20&limit=8'),
+          apiGet<{ brands: Brand[] }>('/api/brands'),
+        ])
+        if (cancelled) return
+
+        setTopLevelCategories(catRes.categories || catRes.allCategories || [])
+        setFeaturedProducts((featRes.products || []).map(normalizeProduct))
+        setTrendingProducts((trendRes.products || []).map(normalizeProduct))
+        setNewArrivals((newArrRes.products || []).map(normalizeProduct))
+        setBestSellers((bestRes.products || []).map(normalizeProduct))
+        setFlashSaleProducts((flashRes.products || []).map(normalizeProduct))
+        setTopBrands((brandRes.brands || []).slice(0, 12))
+      } catch (err) {
+        console.error('Homepage data load error:', err)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    loadData()
+    return () => { cancelled = true }
+  }, [])
 
   // ─── Hero Carousel State ─────────────────────────────────────────────────
   const [heroIndex, setHeroIndex] = useState(0)
@@ -374,18 +569,18 @@ export default function Homepage() {
   const activeBanners = useMemo(() => banners.filter(b => b.isActive), [])
 
   const nextSlide = useCallback(() => {
-    setHeroIndex(prev => (prev + 1) % activeBanners.length)
+    setHeroIndex(prev => (prev + 1) % (activeBanners.length || 1))
   }, [activeBanners.length])
 
   const prevSlide = useCallback(() => {
-    setHeroIndex(prev => (prev - 1 + activeBanners.length) % activeBanners.length)
+    setHeroIndex(prev => (prev - 1 + activeBanners.length) % (activeBanners.length || 1))
   }, [activeBanners.length])
 
   useEffect(() => {
-    if (heroPaused) return
+    if (heroPaused || activeBanners.length === 0) return
     const timer = setInterval(nextSlide, 5000)
     return () => clearInterval(timer)
-  }, [nextSlide, heroPaused])
+  }, [nextSlide, heroPaused, activeBanners.length])
 
   // ─── Flash Sale Countdown ────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState({ hours: 6, minutes: 0, seconds: 0 })
@@ -413,14 +608,15 @@ export default function Homepage() {
   const reviewsPerView = 3
 
   const nextReview = useCallback(() => {
-    setReviewIndex(prev => (prev + 1) % reviews.length)
+    setReviewIndex(prev => (prev + 1) % (reviews.length || 1))
   }, [])
 
   const prevReview = useCallback(() => {
-    setReviewIndex(prev => (prev - 1 + reviews.length) % reviews.length)
+    setReviewIndex(prev => (prev - 1 + reviews.length) % (reviews.length || 1))
   }, [])
 
   useEffect(() => {
+    if (reviews.length === 0) return
     const timer = setInterval(nextReview, 4000)
     return () => clearInterval(timer)
   }, [nextReview])
@@ -580,31 +776,39 @@ export default function Homepage() {
             icon={<Sparkles size={16} />}
           />
           <HorizontalScroll>
-            {topLevelCategories.map((cat, i) => (
-              <motion.button
-                key={cat.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                whileHover={{ y: -6, scale: 1.05 }}
-                onClick={() => navigate('products', { category: cat.id })}
-                className="flex flex-col items-center gap-2.5 min-w-[90px] sm:min-w-[100px] p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer group"
-              >
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring-2 ring-orange-100 dark:ring-orange-900/50 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 group-hover:ring-orange-300 dark:group-hover:ring-orange-700 transition-all">
-                  <img
-                    src={cat.image}
-                    alt={cat.name}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 text-center leading-tight">
-                  {cat.name}
-                </span>
-                <span className="text-[10px] text-muted-foreground">{cat.productCount} Products</span>
-              </motion.button>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, i) => <CategorySkeleton key={i} />)
+            ) : topLevelCategories.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 px-4 w-full text-center">
+                No categories available.
+              </div>
+            ) : (
+              topLevelCategories.map((cat, i) => (
+                <motion.button
+                  key={cat.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                  whileHover={{ y: -6, scale: 1.05 }}
+                  onClick={() => navigate('products', { category: cat.id })}
+                  className="flex flex-col items-center gap-2.5 min-w-[90px] sm:min-w-[100px] p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer group"
+                >
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring-2 ring-orange-100 dark:ring-orange-900/50 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 group-hover:ring-orange-300 dark:group-hover:ring-orange-700 transition-all">
+                    <img
+                      src={cat.image || ''}
+                      alt={cat.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 text-center leading-tight">
+                    {cat.name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">{cat.productCount ?? 0} Products</span>
+                </motion.button>
+              ))
+            )}
           </HorizontalScroll>
         </AnimatedSection>
 
@@ -647,57 +851,65 @@ export default function Homepage() {
                 </div>
               </div>
               <HorizontalScroll>
-                {flashSaleProducts.map((product) => (
-                  <div key={product.id} className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
-                    <div className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-red-100 dark:border-red-900/50 overflow-hidden group cursor-pointer hover:shadow-xl hover:shadow-red-500/10 transition-all"
-                      onClick={() => navigate('product-detail', { productId: product.id })}
-                    >
-                      {/* Stock urgency */}
-                      {product.stock <= 15 && (
-                        <Badge className="absolute top-1.5 right-1.5 z-10 bg-red-500 text-white border-0 text-[10px] animate-pulse">
-                          Only {product.stock} left!
-                        </Badge>
-                      )}
-                      <div className="relative aspect-square bg-gray-50 dark:bg-zinc-800 overflow-hidden">
-                        <img src={product.images[0]} alt={product.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                        <Badge className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-500 to-orange-500 text-white border-0 text-[11px] font-bold px-2 py-0.5">
-                          -{product.discount}%
-                        </Badge>
-                      </div>
-                      <div className="p-2.5 flex flex-col gap-1">
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                          {getBrandName(product.brandId)}
-                        </span>
-                        <h3 className="text-xs font-medium line-clamp-2 leading-snug min-h-[2rem]">{product.name}</h3>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm font-bold text-red-600 dark:text-red-400">{formatPrice(product.salePrice)}</span>
-                          <span className="text-[10px] text-muted-foreground line-through">{formatPrice(product.basePrice)}</span>
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => <FlashSaleCardSkeleton key={i} />)
+                ) : flashSaleProducts.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-8 px-4 w-full text-center">
+                    No flash sale products right now. Check back soon!
+                  </div>
+                ) : (
+                  flashSaleProducts.map((product) => (
+                    <div key={product.id} className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
+                      <div className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-xl border border-red-100 dark:border-red-900/50 overflow-hidden group cursor-pointer hover:shadow-xl hover:shadow-red-500/10 transition-all"
+                        onClick={() => navigate('product-detail', { productId: product.id })}
+                      >
+                        {/* Stock urgency */}
+                        {product.stock <= 15 && (
+                          <Badge className="absolute top-1.5 right-1.5 z-10 bg-red-500 text-white border-0 text-[10px] animate-pulse">
+                            Only {product.stock} left!
+                          </Badge>
+                        )}
+                        <div className="relative aspect-square bg-gray-50 dark:bg-zinc-800 overflow-hidden">
+                          <img src={product.images[0]} alt={product.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          <Badge className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-500 to-orange-500 text-white border-0 text-[11px] font-bold px-2 py-0.5">
+                            -{product.discount}%
+                          </Badge>
                         </div>
-                        <Button
-                          size="sm"
-                          className="w-full mt-1 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white border-0 text-[11px] font-semibold shadow-md gap-1"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            useCartStore.getState().addItem({
-                              id: `${product.id}-${Date.now()}`,
-                              productId: product.id,
-                              name: product.name,
-                              image: product.images[0],
-                              price: product.basePrice,
-                              salePrice: product.salePrice,
-                              quantity: 1,
-                              stock: product.stock,
-                              saveForLater: false,
-                            })
-                          }}
-                        >
-                          <ShoppingCart size={12} />
-                          Add to Cart
-                        </Button>
+                        <div className="p-2.5 flex flex-col gap-1">
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                            {product.brand?.name ?? ''}
+                          </span>
+                          <h3 className="text-xs font-medium line-clamp-2 leading-snug min-h-[2rem]">{product.name}</h3>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-sm font-bold text-red-600 dark:text-red-400">{formatPrice(product.salePrice)}</span>
+                            <span className="text-[10px] text-muted-foreground line-through">{formatPrice(product.basePrice)}</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full mt-1 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white border-0 text-[11px] font-semibold shadow-md gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              useCartStore.getState().addItem({
+                                id: `${product.id}-${Date.now()}`,
+                                productId: product.id,
+                                name: product.name,
+                                image: product.images[0] || '',
+                                price: product.basePrice,
+                                salePrice: product.salePrice,
+                                quantity: 1,
+                                stock: product.stock,
+                                saveForLater: false,
+                              })
+                            }}
+                          >
+                            <ShoppingCart size={12} />
+                            Add to Cart
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </HorizontalScroll>
             </div>
           </div>
@@ -713,17 +925,25 @@ export default function Homepage() {
             onAction={() => navigate('products')}
           />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {featuredProducts.slice(0, 8).map((product, i) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            ) : featuredProducts.length === 0 ? (
+              <div className="col-span-full text-sm text-muted-foreground py-8 text-center">
+                No featured products available.
+              </div>
+            ) : (
+              featuredProducts.slice(0, 8).map((product, i) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <ProductCard product={product} />
+                </motion.div>
+              ))
+            )}
           </div>
         </AnimatedSection>
 
@@ -776,26 +996,38 @@ export default function Homepage() {
             onAction={() => navigate('products')}
           />
           <HorizontalScroll>
-            {trendingProducts.slice(0, 12).map((product, i) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="min-w-[180px] sm:min-w-[200px] max-w-[200px]"
-              >
-                <ProductCard
-                  product={product}
-                  badge={
-                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-[10px] font-bold px-2 py-0.5 shadow-sm">
-                      <TrendingUp size={10} className="mr-0.5" />
-                      Trending
-                    </Badge>
-                  }
-                />
-              </motion.div>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
+                  <ProductCardSkeleton />
+                </div>
+              ))
+            ) : trendingProducts.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 px-4 w-full text-center">
+                No trending products right now.
+              </div>
+            ) : (
+              trendingProducts.slice(0, 12).map((product, i) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                  className="min-w-[180px] sm:min-w-[200px] max-w-[200px]"
+                >
+                  <ProductCard
+                    product={product}
+                    badge={
+                      <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-[10px] font-bold px-2 py-0.5 shadow-sm">
+                        <TrendingUp size={10} className="mr-0.5" />
+                        Trending
+                      </Badge>
+                    }
+                  />
+                </motion.div>
+              ))
+            )}
           </HorizontalScroll>
         </AnimatedSection>
 
@@ -807,23 +1039,31 @@ export default function Homepage() {
             icon={<Crown size={16} />}
           />
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4">
-            {topBrands.map((brand, i) => (
-              <motion.div
-                key={brand.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.04 }}
-                whileHover={{ y: -4, scale: 1.05 }}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md hover:shadow-orange-500/5 transition-all cursor-pointer"
-                onClick={() => navigate('products')}
-              >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
-                  <img src={brand.logo} alt={brand.name} loading="lazy" className="w-full h-full object-cover" />
-                </div>
-                <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 text-center">{brand.name}</span>
-              </motion.div>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 12 }).map((_, i) => <BrandSkeleton key={i} />)
+            ) : topBrands.length === 0 ? (
+              <div className="col-span-full text-sm text-muted-foreground py-8 text-center">
+                No brands available.
+              </div>
+            ) : (
+              topBrands.map((brand, i) => (
+                <motion.div
+                  key={brand.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.04 }}
+                  whileHover={{ y: -4, scale: 1.05 }}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md hover:shadow-orange-500/5 transition-all cursor-pointer"
+                  onClick={() => navigate('products')}
+                >
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                    <img src={brand.logo || ''} alt={brand.name} loading="lazy" className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 text-center">{brand.name}</span>
+                </motion.div>
+              ))
+            )}
           </div>
         </AnimatedSection>
 
@@ -837,24 +1077,32 @@ export default function Homepage() {
             onAction={() => navigate('products')}
           />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {newArrivals.slice(0, 8).map((product, i) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <ProductCard
-                  product={product}
-                  badge={
-                    <Badge className="bg-gradient-to-r from-emerald-400 to-teal-500 text-white border-0 text-[10px] font-bold px-2 py-0.5 shadow-sm">
-                      NEW
-                    </Badge>
-                  }
-                />
-              </motion.div>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            ) : newArrivals.length === 0 ? (
+              <div className="col-span-full text-sm text-muted-foreground py-8 text-center">
+                No new arrivals yet. Check back soon!
+              </div>
+            ) : (
+              newArrivals.slice(0, 8).map((product, i) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <ProductCard
+                    product={product}
+                    badge={
+                      <Badge className="bg-gradient-to-r from-emerald-400 to-teal-500 text-white border-0 text-[10px] font-bold px-2 py-0.5 shadow-sm">
+                        NEW
+                      </Badge>
+                    }
+                  />
+                </motion.div>
+              ))
+            )}
           </div>
         </AnimatedSection>
 
@@ -868,18 +1116,30 @@ export default function Homepage() {
             onAction={() => navigate('products')}
           />
           <HorizontalScroll>
-            {bestSellers.slice(0, 10).map((product, i) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="min-w-[180px] sm:min-w-[200px] max-w-[200px]"
-              >
-                <ProductCard product={product} rank={i + 1} />
-              </motion.div>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="min-w-[180px] sm:min-w-[200px] max-w-[200px]">
+                  <ProductCardSkeleton />
+                </div>
+              ))
+            ) : bestSellers.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 px-4 w-full text-center">
+                No best sellers yet.
+              </div>
+            ) : (
+              bestSellers.slice(0, 10).map((product, i) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                  className="min-w-[180px] sm:min-w-[200px] max-w-[200px]"
+                >
+                  <ProductCard product={product} rank={i + 1} />
+                </motion.div>
+              ))
+            )}
           </HorizontalScroll>
         </AnimatedSection>
 
@@ -897,41 +1157,35 @@ export default function Homepage() {
                 animate={{ x: `-${reviewIndex * (100 / reviewsPerView)}%` }}
                 transition={{ type: 'spring', stiffness: 200, damping: 25 }}
               >
-                {reviews.map((review) => {
-                  const productImage = getReviewProductImage(review.productId)
-                  return (
-                    <div
-                      key={review.id}
-                      className="min-w-[calc(100%/3)] max-w-[calc(100%/3)] px-1"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <div className="flex flex-col h-full p-5 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-lg transition-shadow">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-white font-bold text-sm">
-                            {review.userName.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{review.userName}</p>
-                            {review.isVerified && (
-                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
-                                <BadgeCheck size={10} /> Verified Purchase
-                              </span>
-                            )}
-                          </div>
-                          {productImage && (
-                            <img src={productImage} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 dark:border-zinc-700" />
+                {reviews.map((review: Review) => (
+                  <div
+                    key={review.id}
+                    className="min-w-[calc(100%/3)] max-w-[calc(100%/3)] px-1"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <div className="flex flex-col h-full p-5 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-lg transition-shadow">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-white font-bold text-sm">
+                          {review.userName.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{review.userName}</p>
+                          {review.isVerified && (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
+                              <BadgeCheck size={10} /> Verified Purchase
+                            </span>
                           )}
                         </div>
-                        <StarRating rating={review.rating} size={13} />
-                        <h4 className="text-sm font-semibold mt-2 text-gray-900 dark:text-gray-100">{review.title}</h4>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-3 flex-1">{review.comment}</p>
-                        <div className="flex items-center gap-1 mt-3 text-[10px] text-muted-foreground">
-                          <span>{review.helpful} found helpful</span>
-                        </div>
+                      </div>
+                      <StarRating rating={review.rating} size={13} />
+                      <h4 className="text-sm font-semibold mt-2 text-gray-900 dark:text-gray-100">{review.title}</h4>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 flex-1">{review.comment}</p>
+                      <div className="flex items-center gap-1 mt-3 text-[10px] text-muted-foreground">
+                        <span>{review.helpful} found helpful</span>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </motion.div>
             </div>
             {/* Arrows */}

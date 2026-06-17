@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useCartStore } from '@/store/cart-store'
 import { useNavigationStore } from '@/store/navigation-store'
 import { useRequireAuth } from '@/hooks/use-require-auth'
+import { useToast } from '@/hooks/use-toast'
 import { formatPrice, coupons } from '@/lib/mock-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ export function CartPage() {
 
   const navigate = useNavigationStore((s) => s.navigate)
   const requireAuth = useRequireAuth()
+  const { toast } = useToast()
 
   const [couponInput, setCouponInput] = useState('')
   const [couponError, setCouponError] = useState('')
@@ -57,6 +59,32 @@ export function CartPage() {
     (sum, i) => sum + (i.price - (i.salePrice || i.price)) * i.quantity,
     0
   )
+
+  // Wrap async store actions so failures (e.g. 401 / network) show a toast
+  // instead of becoming unhandled promise rejections.
+  const handleRemove = async (id: string) => {
+    try {
+      await removeItem(id)
+    } catch (err) {
+      toast({
+        title: 'Failed to remove item',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleUpdateQuantity = async (id: string, quantity: number) => {
+    try {
+      await updateQuantity(id, quantity)
+    } catch (err) {
+      toast({
+        title: 'Failed to update quantity',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const handleApplyCoupon = () => {
     setCouponError('')
@@ -148,8 +176,8 @@ export function CartPage() {
                     <CartItemCard
                       key={item.id}
                       item={item}
-                      onRemove={removeItem}
-                      onUpdateQuantity={updateQuantity}
+                      onRemove={handleRemove}
+                      onUpdateQuantity={handleUpdateQuantity}
                       onSaveForLater={toggleSaveForLater}
                     />
                   ))}
@@ -268,8 +296,8 @@ export function CartPage() {
                     <CartItemCard
                       key={item.id}
                       item={item}
-                      onRemove={removeItem}
-                      onUpdateQuantity={updateQuantity}
+                      onRemove={handleRemove}
+                      onUpdateQuantity={handleUpdateQuantity}
                       onSaveForLater={toggleSaveForLater}
                       isSaved
                     />
@@ -401,8 +429,8 @@ export function CartPage() {
 
 interface CartItemCardProps {
   item: CartItemType
-  onRemove: (id: string) => void
-  onUpdateQuantity: (id: string, quantity: number) => void
+  onRemove: (id: string) => void | Promise<void>
+  onUpdateQuantity: (id: string, quantity: number) => void | Promise<void>
   onSaveForLater: (id: string) => void
   isSaved?: boolean
 }
