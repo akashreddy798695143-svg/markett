@@ -13,6 +13,7 @@ export type ViewMode =
   | 'info'
 
 export type InfoPage =
+<<<<<<< HEAD
   | 'about'
   | 'contact'
   | 'careers'
@@ -27,6 +28,11 @@ export type InfoPage =
   | 'refund-policy'
   | 'sitemap'
   | 'cookies'
+=======
+  | 'about' | 'contact' | 'careers' | 'blog' | 'press' | 'help'
+  | 'returns' | 'shipping' | 'faq' | 'privacy' | 'terms' | 'refund-policy'
+  | 'sitemap' | 'cookies'
+>>>>>>> 727986fe0e8dccab0979cf37066d6e3ac22d8297
 
 interface NavigationState {
   currentView: ViewMode
@@ -38,6 +44,11 @@ interface NavigationState {
   adminTab: string
   authMode: 'login' | 'register' | 'otp' | 'forgot-password'
   infoPage: InfoPage
+<<<<<<< HEAD
+=======
+  
+  // ఫంక్షన్స్
+>>>>>>> 727986fe0e8dccab0979cf37066d6e3ac22d8297
   navigate: (view: ViewMode, options?: { productId?: string; category?: string; query?: string; tab?: string }) => void
   navigateToInfo: (page: InfoPage) => void
   setSearchQuery: (query: string) => void
@@ -57,6 +68,7 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   adminTab: 'dashboard',
   authMode: 'login',
   infoPage: 'about',
+<<<<<<< HEAD
   navigate: (view, options) => set({
     currentView: view,
     selectedProductId: options?.productId ?? null,
@@ -67,6 +79,22 @@ export const useNavigationStore = create<NavigationState>((set) => ({
     adminTab: options?.tab ?? 'dashboard',
   }),
   navigateToInfo: (page) => set({ currentView: 'info', infoPage: page }),
+=======
+
+  navigate: (view, options = {}) => set((state) => ({
+    currentView: view,
+    selectedProductId: options.productId ?? state.selectedProductId,
+    selectedCategory: options.category ?? state.selectedCategory,
+    searchQuery: options.query ?? state.searchQuery,
+    // Tab logic ni dynamic ga handle chesam
+    dashboardTab: view === 'user-dashboard' ? (options.tab ?? state.dashboardTab) : state.dashboardTab,
+    sellerTab: view === 'seller-panel' ? (options.tab ?? state.sellerTab) : state.sellerTab,
+    adminTab: view === 'admin-panel' ? (options.tab ?? state.adminTab) : state.adminTab,
+  })),
+
+  navigateToInfo: (page) => set({ currentView: 'info', infoPage: page }),
+  
+>>>>>>> 727986fe0e8dccab0979cf37066d6e3ac22d8297
   setSearchQuery: (query) => set({ searchQuery: query }),
   setAuthMode: (mode) => set({ authMode: mode }),
   setDashboardTab: (tab) => set({ dashboardTab: tab }),

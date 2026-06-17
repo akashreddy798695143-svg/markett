@@ -1315,4 +1315,8 @@ function CookiesContent() {
       <ContactCard />
     </div>
   )
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 727986fe0e8dccab0979cf37066d6e3ac22d8297

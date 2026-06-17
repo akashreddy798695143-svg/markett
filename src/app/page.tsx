@@ -16,10 +16,12 @@ import SellerPanel from '@/components/ecommerce/seller-panel'
 import AdminPanel from '@/components/ecommerce/admin-panel'
 import InfoPages from '@/components/ecommerce/info-pages'
 import { AIChatbot } from '@/components/ecommerce/ai-chatbot'
+import InfoPages from '@/components/ecommerce/info-pages' // ఇది ఇక్కడ ఉండాలి
 
 function ViewRenderer() {
   const { currentView } = useNavigationStore()
 
+  // ఇక్కడ 'info'ని యాడ్ చేసాం
   const viewComponents: Record<string, React.ReactNode> = {
     home: <Homepage />,
     products: <ProductsPage />,
@@ -30,7 +32,11 @@ function ViewRenderer() {
     'user-dashboard': <UserDashboard />,
     'seller-panel': <SellerPanel />,
     'admin-panel': <AdminPanel />,
+<<<<<<< HEAD
     info: <InfoPages />,
+=======
+    info: <InfoPages />, 
+>>>>>>> 727986fe0e8dccab0979cf37066d6e3ac22d8297
   }
 
   return (
@@ -64,6 +70,7 @@ export default function Home() {
       <main className="flex-1">
         <ViewRenderer />
       </main>
+      {/* డాష్‌బోర్డ్ కానప్పుడు మాత్రమే ఫుటర్ కనిపిస్తుంది */}
       {!isDashboard && <Footer />}
       <AIChatbot />
     </div>
