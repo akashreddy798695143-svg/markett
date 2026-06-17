@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 interface User {
   id: string
@@ -28,15 +28,20 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      
       login: (user) => set({ user, isAuthenticated: true }),
+      
       logout: () => set({ user: null, isAuthenticated: false }),
+      
       setLoading: (isLoading) => set({ isLoading }),
+      
       updateProfile: (data) => set((state) => ({
         user: state.user ? { ...state.user, ...data } : null,
       })),
     }),
     {
-      name: 'auth-storage',
+      name: 'auth-storage', // localStorage లో ఏ పేరుతో సేవ్ అవ్వాలో అది
+      storage: createJSONStorage(() => localStorage), // ఏ స్టోరేజ్ వాడాలో క్లియర్‌గా చెప్పాలి
       partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )
